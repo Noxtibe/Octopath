@@ -76,6 +76,11 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
 	bool bIsBoss;
 
+	// --- General ---
+	// Name of the entity (will be used in the UI)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats|General")
+	FText EntityName;
+
 	// --- Functions to Modify Stats ---
 
 	/**

@@ -6,6 +6,7 @@
 #include "Blueprint/UserWidget.h"
 #include "Widget/TurnOrderWidget.h"
 #include "Widget/PlayerTurnMenuWidget.h"
+#include "Widget/PlayerStatsWidget.h"
 
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/Character.h"
@@ -56,6 +57,19 @@ void UTurnBasedCombatComponent::BeginPlay()
             if (TurnOrderWidget)
             {
                 TurnOrderWidget->AddToViewport();
+            }
+        }
+    }
+
+    // Create and display the Player Stats widget.
+    if (PlayerStatsWidgetClass)
+    {
+        if (APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0))
+        {
+            PlayerStatsWidget = CreateWidget<UPlayerStatsWidget>(PC, PlayerStatsWidgetClass);
+            if (PlayerStatsWidget)
+            {
+                PlayerStatsWidget->AddToViewport();
             }
         }
     }

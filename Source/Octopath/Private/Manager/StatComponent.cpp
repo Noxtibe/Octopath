@@ -5,6 +5,9 @@ UStatComponent::UStatComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
 
+	// Default entity name.
+	EntityName = FText::FromString("Unnamed");
+
 	// Set default values:
 	// Default for non-boss characters:
 	MaxHealth = 250.f;

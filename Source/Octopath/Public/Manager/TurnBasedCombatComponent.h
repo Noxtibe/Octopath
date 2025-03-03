@@ -8,6 +8,7 @@
 // Forward declarations
 class UTurnOrderWidget;
 class UPlayerTurnMenuWidget;
+class UPlayerStatsWidget;
 class UUserWidget;
 class UCanvasPanel;
 
@@ -83,7 +84,7 @@ private:
     int32 CurrentTurnIndex;
 
     // Class of the Turn Order widget (derived from UTurnOrderWidget).
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat", meta = (AllowPrivateAccess = "true"))
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|UI", meta = (AllowPrivateAccess = "true"))
     TSubclassOf<UTurnOrderWidget> TurnOrderWidgetClass;
 
     // Instance of the Turn Order widget.
@@ -91,12 +92,20 @@ private:
     UTurnOrderWidget* TurnOrderWidget;
 
     // Class of the player's action menu widget (derived from UPlayerTurnMenuWidget).
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat", meta = (AllowPrivateAccess = "true"))
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|UI", meta = (AllowPrivateAccess = "true"))
     TSubclassOf<UPlayerTurnMenuWidget> PlayerTurnMenuWidgetClass;
 
     // Instance of the player's action menu widget.
     UPROPERTY(meta = (AllowPrivateAccess = "true"))
     UPlayerTurnMenuWidget* PlayerTurnMenuWidget;
+
+    // Class of the player's stats widget (derived from UPlayerStatsWidget).
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|UI", meta = (AllowPrivateAccess = "true"))
+    TSubclassOf<UPlayerStatsWidget> PlayerStatsWidgetClass;
+
+    // Instance of the player's stats widget.
+    UPROPERTY(meta = (AllowPrivateAccess = "true"))
+    UPlayerStatsWidget* PlayerStatsWidget;
 
     // Original map name (used for fleeing).
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat", meta = (AllowPrivateAccess = "true"))
