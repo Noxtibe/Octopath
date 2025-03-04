@@ -50,12 +50,18 @@ void UStatComponent::ApplyDamage(float DamageAmount, bool bIsMagical)
 	// Determine the maximum health clamp based on whether the actor is a boss.
 	float HealthClampMax = bIsBoss ? MaxHealth : FMath::Min(MaxHealth, 10000.f);
 	Health = FMath::Clamp(Health, 0.f, HealthClampMax);
+
+	// Broadcast the event for Health change.
+	OnHealthChanged.Broadcast();
 }
 
 void UStatComponent::UseTechniquePoints(float Amount)
 {
 	TechniquePoints -= Amount;
 	TechniquePoints = FMath::Clamp(TechniquePoints, 0.f, MaxTechniquePoints);
+
+	// Broadcast the event for Technique Points change.
+	OnTechniquePointsChanged.Broadcast();
 }
 
 void UStatComponent::Heal(float Amount)
@@ -63,4 +69,7 @@ void UStatComponent::Heal(float Amount)
 	Health += Amount;
 	float HealthClampMax = bIsBoss ? MaxHealth : FMath::Min(MaxHealth, 10000.f);
 	Health = FMath::Clamp(Health, 0.f, HealthClampMax);
+
+	// Broadcast the event for Health change.
+	OnHealthChanged.Broadcast();
 }

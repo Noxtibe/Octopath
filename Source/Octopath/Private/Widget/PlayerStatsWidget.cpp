@@ -4,62 +4,95 @@
 #include "Kismet/GameplayStatics.h"
 #include "Manager/StatComponent.h"
 
-void UPlayerStatsWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
+void UPlayerStatsWidget::NativeConstruct()
 {
-    Super::NativeTick(MyGeometry, InDeltaTime);
+	Super::NativeConstruct();
 
-    // Get the player controller.
-    APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
-    if (!PC)
-    {
-        return;
-    }
+	// Retrieve necessary references once.
+	GetReferences();
 
-    // Get the player pawn.
-    APawn* Pawn = PC->GetPawn();
-    if (!Pawn)
-    {
-        return;
-    }
+	// Initial update for each part.
+	UpdatePlayerName();
+	UpdateHealth();
+	UpdateTechniquePoints();
 
-    // Get the player's StatComponent.
-    UStatComponent* StatComp = Pawn->FindComponentByClass<UStatComponent>();
-    if (!StatComp)
-    {
-        return;
-    }
+	// Subscribe to specific stat update events.
+	if (PlayerStatComp)
+	{
+		PlayerStatComp->OnHealthChanged.AddDynamic(this, &UPlayerStatsWidget::UpdateHealth);
+		PlayerStatComp->OnTechniquePointsChanged.AddDynamic(this, &UPlayerStatsWidget::UpdateTechniquePoints);
+		// If the player's name may change during gameplay, we can also subscribe to an appropriate event.
+	}
+}
 
-    // Update the player's name.
-    if (PlayerNameText)
-    {
-        PlayerNameText->SetText(StatComp->EntityName);
-    }
+void UPlayerStatsWidget::GetReferences()
+{
+	// Get the player controller.
+	APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
+	if (!PC)
+	{
+		return;
+	}
 
-    // Update health text ("Current/Max").
-    if (HealthText)
-    {
-        FString HealthStr = FString::Printf(TEXT("%.0f/%.0f"), StatComp->Health, StatComp->MaxHealth);
-        HealthText->SetText(FText::FromString(HealthStr));
-    }
+	// Get the player's pawn.
+	APawn* Pawn = PC->GetPawn();
+	if (!Pawn)
+	{
+		return;
+	}
 
-    // Update the health progress bar.
-    if (HealthBar)
-    {
-        float HealthPercent = (StatComp->MaxHealth > 0.f) ? StatComp->Health / StatComp->MaxHealth : 0.f;
-        HealthBar->SetPercent(HealthPercent);
-    }
+	// Cache the reference to the player's stat component.
+	PlayerStatComp = Pawn->FindComponentByClass<UStatComponent>();
+}
 
-    // Update mana text ("Current/Max").
-    if (ManaText)
-    {
-        FString ManaStr = FString::Printf(TEXT("%.0f/%.0f"), StatComp->TechniquePoints, StatComp->MaxTechniquePoints);
-        ManaText->SetText(FText::FromString(ManaStr));
-    }
+void UPlayerStatsWidget::UpdatePlayerName()
+{
+	if (PlayerNameText && PlayerStatComp)
+	{
+		PlayerNameText->SetText(PlayerStatComp->EntityName);
+	}
+}
 
-    // Update the mana progress bar.
-    if (ManaBar)
-    {
-        float ManaPercent = (StatComp->MaxTechniquePoints > 0.f) ? StatComp->TechniquePoints / StatComp->MaxTechniquePoints : 0.f;
-        ManaBar->SetPercent(ManaPercent);
-    }
+void UPlayerStatsWidget::UpdateHealth()
+{
+	if (!PlayerStatComp)
+	{
+		return;
+	}
+
+	// Update health text ("Current/Max").
+	if (HealthText)
+	{
+		FString HealthStr = FString::Printf(TEXT("%.0f/%.0f"), PlayerStatComp->Health, PlayerStatComp->MaxHealth);
+		HealthText->SetText(FText::FromString(HealthStr));
+	}
+
+	// Update the health progress bar.
+	if (HealthBar)
+	{
+		float HealthPercent = (PlayerStatComp->MaxHealth > 0.f) ? PlayerStatComp->Health / PlayerStatComp->MaxHealth : 0.f;
+		HealthBar->SetPercent(HealthPercent);
+	}
+}
+
+void UPlayerStatsWidget::UpdateTechniquePoints()
+{
+	if (!PlayerStatComp)
+	{
+		return;
+	}
+
+	// Update technique text ("Current/Max").
+	if (TechniqueText)
+	{
+		FString TechniqueStr = FString::Printf(TEXT("%.0f/%.0f"), PlayerStatComp->TechniquePoints, PlayerStatComp->MaxTechniquePoints);
+		TechniqueText->SetText(FText::FromString(TechniqueStr));
+	}
+
+	// Update the technique progress bar.
+	if (TechniqueBar)
+	{
+		float TechniquePercent = (PlayerStatComp->MaxTechniquePoints > 0.f) ? PlayerStatComp->TechniquePoints / PlayerStatComp->MaxTechniquePoints : 0.f;
+		TechniqueBar->SetPercent(TechniquePercent);
+	}
 }

@@ -16,6 +16,30 @@
  *
  * Attach this component to any actor (player or enemy) to provide consistent stat management.
  */
+
+ // Delegate for when Health changes.
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnHealthChanged);
+// Delegate for when MaxHealth changes.
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnMaxHealthChanged);
+
+// Delegate for when Technique Points change.
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnTechniquePointsChanged);
+// Delegate for when Max Technique Points change.
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnMaxTechniquePointsChanged);
+
+// Delegate for when Physical Defense changes.
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnPhysicalDefenseChanged);
+// Delegate for when Magical Defense changes.
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnMagicalDefenseChanged);
+
+// Delegate for when Physical Attack changes.
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnPhysicalAttackChanged);
+// Delegate for when Magical Attack changes.
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnMagicalAttackChanged);
+
+// Delegate for when Speed changes.
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnSpeedChanged);
+
 UCLASS(Blueprintable, ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class OCTOPATH_API UStatComponent : public UActorComponent
 {
@@ -80,6 +104,34 @@ public:
 	// Name of the entity (will be used in the UI)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats|General")
 	FText EntityName;
+
+	// --- Delegates for each stat ---
+	UPROPERTY(BlueprintAssignable, Category = "Stats")
+	FOnHealthChanged OnHealthChanged;
+
+	UPROPERTY(BlueprintAssignable, Category = "Stats")
+	FOnMaxHealthChanged OnMaxHealthChanged;
+
+	UPROPERTY(BlueprintAssignable, Category = "Stats")
+	FOnTechniquePointsChanged OnTechniquePointsChanged;
+
+	UPROPERTY(BlueprintAssignable, Category = "Stats")
+	FOnMaxTechniquePointsChanged OnMaxTechniquePointsChanged;
+
+	UPROPERTY(BlueprintAssignable, Category = "Stats")
+	FOnPhysicalDefenseChanged OnPhysicalDefenseChanged;
+
+	UPROPERTY(BlueprintAssignable, Category = "Stats")
+	FOnMagicalDefenseChanged OnMagicalDefenseChanged;
+
+	UPROPERTY(BlueprintAssignable, Category = "Stats")
+	FOnPhysicalAttackChanged OnPhysicalAttackChanged;
+
+	UPROPERTY(BlueprintAssignable, Category = "Stats")
+	FOnMagicalAttackChanged OnMagicalAttackChanged;
+
+	UPROPERTY(BlueprintAssignable, Category = "Stats")
+	FOnSpeedChanged OnSpeedChanged;
 
 	// --- Functions to Modify Stats ---
 

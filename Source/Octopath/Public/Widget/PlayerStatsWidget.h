@@ -6,16 +6,13 @@
 
 class UTextBlock;
 class UProgressBar;
+class UStatComponent;
 
 /**
- * PlayerStatsWidget
+ * UPlayerStatsWidget
  *
- * This widget displays the player's stats:
- * - Player name.
- * - Health as numeric values (e.g., "500/500") and a green health bar.
- * - Mana as numeric values and a blue mana bar.
- *
- * All logic for updating the UI is handled in C++ via NativeTick.
+ * This widget displays the player's stats (name, health, techniques) and updates its display
+ * only when needed, using the UpdateStats() function triggered by events.
  */
 UCLASS()
 class OCTOPATH_API UPlayerStatsWidget : public UCommonActivatableWidget
@@ -24,28 +21,39 @@ class OCTOPATH_API UPlayerStatsWidget : public UCommonActivatableWidget
 
 public:
     // Bindable widget variables - assign these in your Blueprint.
-
-    // Text block to display the player's name.
     UPROPERTY(meta = (BindWidget))
     UTextBlock* PlayerNameText;
 
-    // Text block to display the player's health (e.g., "500/500").
     UPROPERTY(meta = (BindWidget))
     UTextBlock* HealthText;
 
-    // Progress bar for the player's health (should be colored green in the designer).
     UPROPERTY(meta = (BindWidget))
     UProgressBar* HealthBar;
 
-    // Text block to display the player's mana (e.g., "100/100").
     UPROPERTY(meta = (BindWidget))
-    UTextBlock* ManaText;
+    UTextBlock* TechniqueText;
 
-    // Progress bar for the player's mana (should be colored blue in the designer).
     UPROPERTY(meta = (BindWidget))
-    UProgressBar* ManaBar;
+    UProgressBar* TechniqueBar;
 
 protected:
-    // Called every frame to update the widget.
-    virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
+    // Called when the widget is constructed.
+    virtual void NativeConstruct() override;
+
+    // Retrieves all the necessary references (only once).
+    void GetReferences();
+
+    UFUNCTION(BlueprintCallable, Category = "Player Stats")
+    void UpdatePlayerName();
+
+    UFUNCTION(BlueprintCallable, Category = "Player Stats")
+    void UpdateHealth();
+
+    UFUNCTION(BlueprintCallable, Category = "Player Stats")
+    void UpdateTechniquePoints();
+
+private:
+    // Cached reference to the player's stat component.
+    UPROPERTY()
+    UStatComponent* PlayerStatComp;
 };
