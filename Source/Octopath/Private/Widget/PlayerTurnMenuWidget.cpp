@@ -23,6 +23,12 @@ void UPlayerTurnMenuWidget::HandleAttackClicked(UMyCommonButton* Button)
 	OnAttackSelected.Broadcast();
 }
 
+void UPlayerTurnMenuWidget::HandleDefenseClicked(UMyCommonButton* Button)
+{
+	// Broadcast that the Defense option was selected
+	OnDefenseSelected.Broadcast();
+}
+
 void UPlayerTurnMenuWidget::HandleFleeClicked(UMyCommonButton* Button)
 {
 	// Broadcast that the Flee option was selected

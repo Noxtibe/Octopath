@@ -7,6 +7,7 @@
 #include "Widget/TurnOrderWidget.h"
 #include "Widget/PlayerTurnMenuWidget.h"
 #include "Widget/PlayerStatsWidget.h"
+#include "Widget/EnemyIndicatorWidget.h" // Ajout de l'include pour l'indicateur
 
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/Character.h"
@@ -111,7 +112,6 @@ void UTurnBasedCombatComponent::StartCombat()
     if (TurnOrderWidget)
     {
         TurnOrderWidget->UpdateTurnOrder(TurnInfos, SelectedEnemy);
-
     }
 
     // Log initial HP for each combatant.
@@ -235,7 +235,8 @@ void UTurnBasedCombatComponent::SetSelectedEnemy(AActor* NewSelectedEnemy)
     {
         if (APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0))
         {
-            CurrentEnemyIndicatorWidget = CreateWidget<UUserWidget>(PC, EnemyIndicatorWidgetClass);
+            // Create the widget using our UEnemyIndicatorWidget class.
+            CurrentEnemyIndicatorWidget = CreateWidget<UEnemyIndicatorWidget>(PC, EnemyIndicatorWidgetClass);
             if (CurrentEnemyIndicatorWidget)
             {
                 CurrentEnemyIndicatorWidget->AddToViewport();
@@ -245,6 +246,16 @@ void UTurnBasedCombatComponent::SetSelectedEnemy(AActor* NewSelectedEnemy)
 
     UpdateEnemyIndicatorPosition();
     ApplyFeedbackToEnemy(NewSelectedEnemy);
+
+    // Update enemy name in the indicator widget.
+    if (CurrentEnemyIndicatorWidget && NewSelectedEnemy)
+    {
+        // CurrentEnemyIndicatorWidget is now of type UEnemyIndicatorWidget.
+        if (UStatComponent* StatComp = NewSelectedEnemy->FindComponentByClass<UStatComponent>())
+        {
+            CurrentEnemyIndicatorWidget->SetEnemyName(StatComp->EntityName);
+        }
+    }
 }
 
 void UTurnBasedCombatComponent::UpdateEnemyIndicatorPosition()

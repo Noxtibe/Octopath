@@ -30,6 +30,9 @@ UStatComponent::UStatComponent()
 
 	// Boss flag defaults to false.
 	bIsBoss = false;
+
+	bIsDefending = false;
+	DefenseReductionPercentage = 0.3f;
 }
 
 void UStatComponent::BeginPlay()
@@ -39,21 +42,26 @@ void UStatComponent::BeginPlay()
 
 void UStatComponent::ApplyDamage(float DamageAmount, bool bIsMagical)
 {
-	// Choose the appropriate defense value.
 	float Defense = bIsMagical ? MagicalDefense : PhysicalDefense;
-
-	// Calculate effective damage; ensure at least 1 damage is applied.
 	float EffectiveDamage = FMath::Max(DamageAmount - Defense, 1.f);
+
+	/*
+	// If the player use "Defense", apply reduction damage
+	if (bIsDefending)
+	{
+		EffectiveDamage *= (1.f - DefenseReductionPercentage);
+		bIsDefending = false;
+	}*/
 
 	Health -= EffectiveDamage;
 
-	// Determine the maximum health clamp based on whether the actor is a boss.
 	float HealthClampMax = bIsBoss ? MaxHealth : FMath::Min(MaxHealth, 10000.f);
 	Health = FMath::Clamp(Health, 0.f, HealthClampMax);
 
 	// Broadcast the event for Health change.
 	OnHealthChanged.Broadcast();
 }
+
 
 void UStatComponent::UseTechniquePoints(float Amount)
 {

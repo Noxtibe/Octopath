@@ -19,14 +19,21 @@ public:
 	UMyCommonButton* AttackButton;
 
 	UPROPERTY(meta = (BindWidget))
+	UMyCommonButton* DefenseButton;
+
+	UPROPERTY(meta = (BindWidget))
 	UMyCommonButton* FleeButton;
 
 	// Delegates to signal the selection of an action
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnAttackSelected);
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDefenseSelected);
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnFleeSelected);
 
 	UPROPERTY(BlueprintAssignable, Category = "Actions")
 	FOnAttackSelected OnAttackSelected;
+
+	UPROPERTY(BlueprintAssignable, Category = "Actions")
+	FOnFleeSelected OnDefenseSelected;
 
 	UPROPERTY(BlueprintAssignable, Category = "Actions")
 	FOnFleeSelected OnFleeSelected;
@@ -37,6 +44,9 @@ protected:
 
 	UFUNCTION()
 	void HandleAttackClicked(UMyCommonButton* Button);
+
+	UFUNCTION()
+	void HandleDefenseClicked(UMyCommonButton* Button);
 
 	UFUNCTION()
 	void HandleFleeClicked(UMyCommonButton* Button);

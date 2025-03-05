@@ -53,6 +53,64 @@ protected:
 	virtual void BeginPlay() override;
 
 public:
+	// --- Functions to Modify Stats ---
+
+	/**
+	 * Applies damage to the actor, taking into account defense values.
+	 *
+	 * @param DamageAmount - The base damage to apply.
+	 * @param bIsMagical - If true, use MagicalDefense; otherwise, use PhysicalDefense.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Stats")
+	void ApplyDamage(float DamageAmount, bool bIsMagical = false);
+
+	/**
+	 * Consumes a specified amount of technique points.
+	 *
+	 * @param Amount - The amount of technique points to use.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Stats")
+	void UseTechniquePoints(float Amount);
+
+	/**
+	 * Heals the actor by a specified amount, without exceeding MaxHealth.
+	 *
+	 * @param Amount - The amount of health to restore.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Stats")
+	void Heal(float Amount);
+
+public:
+
+	// --- Delegates for each stat ---
+	UPROPERTY(BlueprintAssignable, Category = "Stats")
+	FOnHealthChanged OnHealthChanged;
+
+	UPROPERTY(BlueprintAssignable, Category = "Stats")
+	FOnMaxHealthChanged OnMaxHealthChanged;
+
+	UPROPERTY(BlueprintAssignable, Category = "Stats")
+	FOnTechniquePointsChanged OnTechniquePointsChanged;
+
+	UPROPERTY(BlueprintAssignable, Category = "Stats")
+	FOnMaxTechniquePointsChanged OnMaxTechniquePointsChanged;
+
+	UPROPERTY(BlueprintAssignable, Category = "Stats")
+	FOnPhysicalDefenseChanged OnPhysicalDefenseChanged;
+
+	UPROPERTY(BlueprintAssignable, Category = "Stats")
+	FOnMagicalDefenseChanged OnMagicalDefenseChanged;
+
+	UPROPERTY(BlueprintAssignable, Category = "Stats")
+	FOnPhysicalAttackChanged OnPhysicalAttackChanged;
+
+	UPROPERTY(BlueprintAssignable, Category = "Stats")
+	FOnMagicalAttackChanged OnMagicalAttackChanged;
+
+	UPROPERTY(BlueprintAssignable, Category = "Stats")
+	FOnSpeedChanged OnSpeedChanged;
+
+public:
 	// --- Health Stats ---
 	// Maximum Health Points.
 	// For non-boss characters, this is clamped to a maximum of 10000.
@@ -105,58 +163,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats|General")
 	FText EntityName;
 
-	// --- Delegates for each stat ---
-	UPROPERTY(BlueprintAssignable, Category = "Stats")
-	FOnHealthChanged OnHealthChanged;
+	// Defense variables
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats|Defense")
+	bool bIsDefending;
 
-	UPROPERTY(BlueprintAssignable, Category = "Stats")
-	FOnMaxHealthChanged OnMaxHealthChanged;
-
-	UPROPERTY(BlueprintAssignable, Category = "Stats")
-	FOnTechniquePointsChanged OnTechniquePointsChanged;
-
-	UPROPERTY(BlueprintAssignable, Category = "Stats")
-	FOnMaxTechniquePointsChanged OnMaxTechniquePointsChanged;
-
-	UPROPERTY(BlueprintAssignable, Category = "Stats")
-	FOnPhysicalDefenseChanged OnPhysicalDefenseChanged;
-
-	UPROPERTY(BlueprintAssignable, Category = "Stats")
-	FOnMagicalDefenseChanged OnMagicalDefenseChanged;
-
-	UPROPERTY(BlueprintAssignable, Category = "Stats")
-	FOnPhysicalAttackChanged OnPhysicalAttackChanged;
-
-	UPROPERTY(BlueprintAssignable, Category = "Stats")
-	FOnMagicalAttackChanged OnMagicalAttackChanged;
-
-	UPROPERTY(BlueprintAssignable, Category = "Stats")
-	FOnSpeedChanged OnSpeedChanged;
-
-	// --- Functions to Modify Stats ---
-
-	/**
-	 * Applies damage to the actor, taking into account defense values.
-	 *
-	 * @param DamageAmount - The base damage to apply.
-	 * @param bIsMagical - If true, use MagicalDefense; otherwise, use PhysicalDefense.
-	 */
-	UFUNCTION(BlueprintCallable, Category = "Stats")
-	void ApplyDamage(float DamageAmount, bool bIsMagical = false);
-
-	/**
-	 * Consumes a specified amount of technique points.
-	 *
-	 * @param Amount - The amount of technique points to use.
-	 */
-	UFUNCTION(BlueprintCallable, Category = "Stats")
-	void UseTechniquePoints(float Amount);
-
-	/**
-	 * Heals the actor by a specified amount, without exceeding MaxHealth.
-	 *
-	 * @param Amount - The amount of health to restore.
-	 */
-	UFUNCTION(BlueprintCallable, Category = "Stats")
-	void Heal(float Amount);
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats|Defense")
+	float DefenseReductionPercentage;
 };

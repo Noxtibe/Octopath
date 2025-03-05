@@ -9,6 +9,7 @@
 class UTurnOrderWidget;
 class UPlayerTurnMenuWidget;
 class UPlayerStatsWidget;
+class UEnemyIndicatorWidget;
 class UUserWidget;
 class UCanvasPanel;
 
@@ -73,7 +74,7 @@ public:
 
     // (No events defined)
 
-// --------------------- Private Functions & Variables ---------------------
+    // --------------------- Private Functions & Variables ---------------------
 private:
     // Array of combatants (player and enemies)
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat", meta = (AllowPrivateAccess = "true"))
@@ -82,6 +83,8 @@ private:
     // Current turn index.
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat", meta = (AllowPrivateAccess = "true"))
     int32 CurrentTurnIndex;
+
+    // --- WIDGET CLASSES ---
 
     // Class of the Turn Order widget (derived from UTurnOrderWidget).
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|UI", meta = (AllowPrivateAccess = "true"))
@@ -107,6 +110,15 @@ private:
     UPROPERTY(meta = (AllowPrivateAccess = "true"))
     UPlayerStatsWidget* PlayerStatsWidget;
 
+    // --- Enemy Indicator Widget ---
+    // Class of the enemy indicator widget (derived from UEnemyIndicatorWidget, which itself inherits from UCommonActivatableWidget).
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Targeting", meta = (AllowPrivateAccess = "true"))
+    TSubclassOf<UEnemyIndicatorWidget> EnemyIndicatorWidgetClass;
+
+    // Instance of the enemy indicator widget.
+    UPROPERTY(meta = (AllowPrivateAccess = "true"))
+    UEnemyIndicatorWidget* CurrentEnemyIndicatorWidget;
+
     // Original map name (used for fleeing).
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat", meta = (AllowPrivateAccess = "true"))
     FName OriginalMapName;
@@ -122,14 +134,6 @@ private:
     // Whether the target is locked.
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Targeting", meta = (AllowPrivateAccess = "true"))
     bool bTargetLocked;
-
-    // Class of the enemy indicator widget (e.g., a widget displaying a white dot).
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Targeting", meta = (AllowPrivateAccess = "true"))
-    TSubclassOf<UUserWidget> EnemyIndicatorWidgetClass;
-
-    // Instance of the enemy indicator widget.
-    UPROPERTY(meta = (AllowPrivateAccess = "true"))
-    UUserWidget* CurrentEnemyIndicatorWidget;
 
     // Variable to detect left mouse button transitions.
     UPROPERTY(meta = (AllowPrivateAccess = "true"))
