@@ -19,6 +19,7 @@ class OCTOPATH_API UAllyAbilityComponent : public UActorComponent
 public:
 	UAllyAbilityComponent();
 
+public:
 	/**
 	 * Executes the default attack.
 	 * @return The damage amount, taken from the owner's PhysicalAttack stat.

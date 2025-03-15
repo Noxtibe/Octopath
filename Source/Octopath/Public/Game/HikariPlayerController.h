@@ -4,14 +4,17 @@
 #include "GameFramework/PlayerController.h"
 #include "HikariPlayerController.generated.h"
 
+// Forward declarations
 class UInputMappingContext;
 class UInputAction;
 
 /**
+ * AHikariPlayerController
+ *
  * Custom PlayerController for Octopath.
  * - In the base level, it uses GameOnly mode (no mouse cursor).
  * - During combat, calling EnableCombatInputMode() switches to GameAndUI mode,
- *   shows the mouse cursor and enables UI interaction.
+ *   shows the mouse cursor, and enables UI interaction.
  */
 UCLASS()
 class OCTOPATH_API AHikariPlayerController : public APlayerController
@@ -20,36 +23,38 @@ class OCTOPATH_API AHikariPlayerController : public APlayerController
 
 public:
 	AHikariPlayerController();
-
-protected:
-	// Called when the game starts.
 	virtual void BeginPlay() override;
-
-	// Setup input bindings for Enhanced Input.
 	virtual void SetupInputComponent() override;
 
-	// Enhanced Input mapping context (assign in editor).
+protected:
+	// Protected variables
+	/** Enhanced Input mapping context (assign in editor). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	UInputMappingContext* DefaultMappingContext;
 
+	/** Enhanced Input mapping context for combat (assign in editor). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	UInputMappingContext* CombatMappingContext;
 
-	// Input actions for moving and looking (assign in editor).
+	/** Input action for moving (assign in editor). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	UInputAction* MoveAction;
 
+	/** Input action for looking (assign in editor). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	UInputAction* LookAction;
 
-	// Input handling functions.
+	// Protected functions
+	/** Handles movement input. */
 	UFUNCTION()
 	void HandleMove(const struct FInputActionValue& Value);
 
+	/** Handles look/rotation input. */
 	UFUNCTION()
 	void HandleLook(const FInputActionValue& Value);
 
 public:
+	// Public functions
 	/**
 	 * Enables combat input mode: switches to GameAndUI mode and shows the mouse cursor.
 	 */

@@ -64,19 +64,19 @@ void AHikariPlayerController::EnableCombatInputMode()
 {
 	UE_LOG(LogTemp, Log, TEXT("EnableCombatInputMode() called"));
 
-	// Bascule vers le mapping context de combat
+	// Switch to the combat mapping context.
 	if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer()))
 	{
-		// Optionnel : Retirer le mapping context de base si vous ne voulez pas que les actions de gameplay se déclenchent
+		// Optionally: Remove the base mapping context if you do not want gameplay actions to trigger.
 		Subsystem->RemoveMappingContext(DefaultMappingContext);
-		// Ajouter le mapping context de combat
+		// Add the combat mapping context.
 		if (CombatMappingContext)
 		{
 			Subsystem->AddMappingContext(CombatMappingContext, 1);
 		}
 	}
 
-	// Passe en mode GameAndUI pour l'UI et montre le curseur
+	// Switch to GameAndUI mode for UI input and show the mouse cursor.
 	FInputModeGameAndUI InputMode;
 	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
 	SetInputMode(InputMode);
@@ -84,27 +84,25 @@ void AHikariPlayerController::EnableCombatInputMode()
 	UE_LOG(LogTemp, Log, TEXT("Mouse cursor is now visible"));
 }
 
-
 void AHikariPlayerController::DisableCombatInputMode()
 {
-	// Retirer le mapping context de combat et (optionnellement) ré-ajouter le mapping context de base
+	// Remove the combat mapping context and (optionally) re-add the base mapping context.
 	if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer()))
 	{
 		if (CombatMappingContext)
 		{
 			Subsystem->RemoveMappingContext(CombatMappingContext);
 		}
-		// Ré-ajoutez le mapping context de base, si nécessaire :
+		// Re-add the base mapping context if necessary:
 		if (DefaultMappingContext)
 		{
 			Subsystem->AddMappingContext(DefaultMappingContext, 0);
 		}
 	}
 
-	// Passe en mode GameOnly pour revenir au gameplay normal.
+	// Switch to GameOnly mode to return to normal gameplay.
 	FInputModeGameOnly InputMode;
 	SetInputMode(InputMode);
 	SetShowMouseCursor(false);
 	UE_LOG(LogTemp, Log, TEXT("DisableCombatInputMode() called: Mouse cursor is now hidden"));
 }
-

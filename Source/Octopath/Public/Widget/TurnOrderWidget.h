@@ -5,6 +5,7 @@
 #include "Combat/CombatTurnInfo.h"
 #include "TurnOrderWidget.generated.h"
 
+// Forward declarations
 class UHorizontalBox;
 class UImage;
 
@@ -17,27 +18,30 @@ class UImage;
 UCLASS()
 class OCTOPATH_API UTurnOrderWidget : public UCommonUserWidget
 {
-    GENERATED_BODY()
+	GENERATED_BODY()
 
 public:
-    // Horizontal box for current turn order icons.
-    UPROPERTY(meta = (BindWidget))
-    UHorizontalBox* TurnOrderBox;
+	// Public Functions
+	/**
+	 * Updates both turn order displays.
+	 * @param CurrentTurnInfos A sorted array of combatant info for the current turn.
+	 * @param FullTurnInfos A sorted array of combatant info for the full turn order.
+	 * @param SelectedEnemy The currently selected enemy (to highlight its icon).
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Turn Order")
+	void UpdateTurnOrder(const TArray<FCombatantTurnInfo>& CurrentTurnInfos, const TArray<FCombatantTurnInfo>& FullTurnInfos, AActor* SelectedEnemy = nullptr);
 
-    // Horizontal box for next-turn order icons.
-    UPROPERTY(meta = (BindWidget))
-    UHorizontalBox* NextTurnOrderBox;
+public:
+	// Public Variables
+	/** Horizontal box for current turn order icons. */
+	UPROPERTY(meta = (BindWidget))
+	UHorizontalBox* TurnOrderBox;
 
-    /**
-     * Updates both turn order displays.
-     * @param CombatantInfos A sorted array of combatant info.
-     * @param SelectedEnemy The currently selected enemy (to highlight its icon).
-     */
-    UFUNCTION(BlueprintCallable, Category = "Turn Order")
-    void UpdateTurnOrder(const TArray<FCombatantTurnInfo>& CurrentTurnInfos, const TArray<FCombatantTurnInfo>& FullTurnInfos, AActor* SelectedEnemy = nullptr);
+	/** Horizontal box for next-turn order icons. */
+	UPROPERTY(meta = (BindWidget))
+	UHorizontalBox* NextTurnOrderBox;
 
-
-    // Texture to use when a combatant is selected (highlight texture, e.g. yellow).
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Turn Order")
-    UTexture2D* SelectedIconTexture;
+	/** Texture to use when a combatant is selected (highlight texture, e.g. yellow). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Turn Order")
+	UTexture2D* SelectedIconTexture;
 };

@@ -6,6 +6,8 @@
 #include "PlayerTurnMenuWidget.generated.h"
 
 /**
+ * UPlayerTurnMenuWidget
+ *
  * A widget that appears during the player's turn to offer action choices.
  */
 UCLASS(Blueprintable)
@@ -14,17 +16,7 @@ class OCTOPATH_API UPlayerTurnMenuWidget : public UCommonActivatableWidget
 	GENERATED_BODY()
 
 public:
-	// Bindable widget references (set these in the UMG Designer)
-	UPROPERTY(meta = (BindWidget))
-	UMyCommonButton* AttackButton;
-
-	UPROPERTY(meta = (BindWidget))
-	UMyCommonButton* DefenseButton;
-
-	UPROPERTY(meta = (BindWidget))
-	UMyCommonButton* FleeButton;
-
-	// Delegates to signal the selection of an action
+	// Public Events
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnAttackSelected);
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDefenseSelected);
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnFleeSelected);
@@ -38,16 +30,34 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Actions")
 	FOnFleeSelected OnFleeSelected;
 
+public:
+	// Public Variables
+	/** Bindable widget reference for the Attack button (set in UMG Designer) */
+	UPROPERTY(meta = (BindWidget))
+	UMyCommonButton* AttackButton;
+
+	/** Bindable widget reference for the Defense button (set in UMG Designer) */
+	UPROPERTY(meta = (BindWidget))
+	UMyCommonButton* DefenseButton;
+
+	/** Bindable widget reference for the Flee button (set in UMG Designer) */
+	UPROPERTY(meta = (BindWidget))
+	UMyCommonButton* FleeButton;
+
 protected:
-	// Override NativeConstruct to bind our button events
+	// Protected Functions
+	/** Overrides the widget construction to bind button events */
 	virtual void NativeConstruct() override;
 
+	/** Handles the event when the Attack button is clicked */
 	UFUNCTION()
 	void HandleAttackClicked(UMyCommonButton* Button);
 
+	/** Handles the event when the Defense button is clicked */
 	UFUNCTION()
 	void HandleDefenseClicked(UMyCommonButton* Button);
 
+	/** Handles the event when the Flee button is clicked */
 	UFUNCTION()
 	void HandleFleeClicked(UMyCommonButton* Button);
 };

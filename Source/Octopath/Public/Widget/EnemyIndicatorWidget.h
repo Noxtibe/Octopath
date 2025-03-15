@@ -4,6 +4,7 @@
 #include "CommonActivatableWidget.h"
 #include "EnemyIndicatorWidget.generated.h"
 
+// Forward declarations
 class UImage;
 class UTextBlock;
 
@@ -16,19 +17,25 @@ class UTextBlock;
 UCLASS()
 class OCTOPATH_API UEnemyIndicatorWidget : public UCommonActivatableWidget
 {
-    GENERATED_BODY()
+	GENERATED_BODY()
 
 public:
-    // Sets the enemy name text.
-    UFUNCTION(BlueprintCallable, Category = "Enemy Indicator")
-    void SetEnemyName(const FText& NewName);
+	// Public functions
+	/**
+	 * Sets the enemy name text.
+	 *
+	 * @param NewName - The new text to display as the enemy's name.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Enemy Indicator")
+	void SetEnemyName(const FText& NewName);
 
 protected:
-    // The image representing the white dot indicator.
-    UPROPERTY(meta = (BindWidget))
-    UImage* IndicatorImage;
+	// Protected variables
+	/** The image representing the white dot indicator. */
+	UPROPERTY(meta = (BindWidget))
+	UImage* IndicatorImage;
 
-    // The text block that displays the enemy's name.
-    UPROPERTY(meta = (BindWidget))
-    UTextBlock* EnemyNameText;
+	/** The text block that displays the enemy's name. */
+	UPROPERTY(meta = (BindWidget))
+	UTextBlock* EnemyNameText;
 };

@@ -46,10 +46,7 @@ class OCTOPATH_API UStatComponent : public UActorComponent
 	GENERATED_BODY()
 
 public:
-	// Constructor
 	UStatComponent();
-
-protected:
 	virtual void BeginPlay() override;
 
 public:
@@ -111,6 +108,11 @@ public:
 	FOnSpeedChanged OnSpeedChanged;
 
 public:
+
+	// Name of the entity (will be used in the UI)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats|General")
+	FText EntityName;
+
 	// --- Health Stats ---
 	// Maximum Health Points.
 	// For non-boss characters, this is clamped to a maximum of 10000.
@@ -157,11 +159,6 @@ public:
 	// If true, the actor is considered a boss and MaxHealth is not capped at 10000.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
 	bool bIsBoss;
-
-	// --- General ---
-	// Name of the entity (will be used in the UI)
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats|General")
-	FText EntityName;
 
 	// Defense variables
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats|Defense")

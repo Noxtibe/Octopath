@@ -5,20 +5,31 @@
 #include "OctopathGameInstance.generated.h"
 
 /**
- * Game Instance
+ * UOctopathGameInstance
+ *
+ * This custom Game Instance class for Octopath stores global game data.
+ * For example, it holds the number of enemies to spawn during combat.
  */
 UCLASS()
 class OCTOPATH_API UOctopathGameInstance : public UGameInstance
 {
-    GENERATED_BODY()
+	GENERATED_BODY()
 
 public:
-    UOctopathGameInstance();
+	// Constructors and override functions
+	UOctopathGameInstance();
 
-    // Number of enemies to spawn in the combat phase (set by the EnemyTrigger)
-    UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Combat")
-    int32 NumberOfEnemies;
+public:
+	// Public functions
+	/**
+	 * Resets game data to default values.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Game Data")
+	void ResetGameData();
 
-    UFUNCTION(BlueprintCallable, Category = "Game Data")
-    void ResetGameData();
+public:
+	// Public variables
+	/** Number of enemies to spawn in the combat phase (set by the EnemyTrigger) */
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Combat")
+	int32 NumberOfEnemies;
 };

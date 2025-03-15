@@ -78,18 +78,3 @@ void AHikari::Look(const FInputActionValue& Value)
 		AddControllerPitchInput(LookAxisVector.Y);
 	}
 }
-
-void AHikari::Attack()
-{
-	UE_LOG(LogTemp, Warning, TEXT("Hikari attacks!"));
-}
-
-void AHikari::Heal()
-{
-	UE_LOG(LogTemp, Warning, TEXT("Hikari heals!"));
-}
-
-void AHikari::Flee()
-{
-	UE_LOG(LogTemp, Warning, TEXT("Hikari attempts to flee!"));
-}
