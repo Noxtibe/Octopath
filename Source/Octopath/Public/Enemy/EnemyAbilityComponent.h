@@ -21,5 +21,5 @@ public:
 
 	// Executes the enemy's default attack (deals fixed damage to the player).
 	UFUNCTION(BlueprintCallable, Category = "Enemy Abilities")
-	void ExecuteDefaultAttack();
+	float ExecuteDefaultAttack();
 };

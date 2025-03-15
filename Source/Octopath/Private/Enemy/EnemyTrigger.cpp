@@ -23,6 +23,9 @@ AEnemyTrigger::AEnemyTrigger()
 
     // Set the default name of the combat level
     CombatLevelName = FName("LVL_Fight");
+
+    // Set Default number of enemies
+    EnemiesCount = 1;
 }
 
 void AEnemyTrigger::BeginPlay()
@@ -45,7 +48,8 @@ void AEnemyTrigger::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent,
             // Retrieve our custom game instance and set a random enemy count (between 1 and 3)
             if (UOctopathGameInstance* GI = Cast<UOctopathGameInstance>(UGameplayStatics::GetGameInstance(this)))
             {
-                GI->NumberOfEnemies = FMath::RandRange(1, 3);
+                //GI->NumberOfEnemies = FMath::RandRange(1, 3);
+                GI->NumberOfEnemies = EnemiesCount;
             }
 
             // Switch to the combat level

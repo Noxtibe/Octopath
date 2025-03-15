@@ -11,6 +11,10 @@ void UPlayerTurnMenuWidget::NativeConstruct()
 	{
 		AttackButton->OnMyClicked.AddDynamic(this, &UPlayerTurnMenuWidget::HandleAttackClicked);
 	}
+	if (DefenseButton)
+	{
+		DefenseButton->OnMyClicked.AddDynamic(this, &UPlayerTurnMenuWidget::HandleDefenseClicked);
+	}
 	if (FleeButton)
 	{
 		FleeButton->OnMyClicked.AddDynamic(this, &UPlayerTurnMenuWidget::HandleFleeClicked);

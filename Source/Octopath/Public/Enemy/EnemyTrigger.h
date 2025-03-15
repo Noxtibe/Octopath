@@ -27,6 +27,9 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
     FName CombatLevelName;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
+    int32 EnemiesCount;
+
     // Function called when an overlap begins
     UFUNCTION()
     void OnOverlapBegin(UPrimitiveComponent* OverlappedComponent,

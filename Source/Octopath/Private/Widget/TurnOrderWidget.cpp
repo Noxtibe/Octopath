@@ -3,9 +3,8 @@
 #include "Components/HorizontalBoxSlot.h"
 #include "Components/Image.h"
 
-void UTurnOrderWidget::UpdateTurnOrder(const TArray<FCombatantTurnInfo>& CombatantInfos, AActor* SelectedEnemy)
+void UTurnOrderWidget::UpdateTurnOrder(const TArray<FCombatantTurnInfo>& CurrentTurnInfos, const TArray<FCombatantTurnInfo>& FullTurnInfos, AActor* SelectedEnemy)
 {
-    // Vérifier que les conteneurs sont valides.
     if (!TurnOrderBox || !NextTurnOrderBox)
     {
         return;
@@ -15,35 +14,19 @@ void UTurnOrderWidget::UpdateTurnOrder(const TArray<FCombatantTurnInfo>& Combata
     TurnOrderBox->ClearChildren();
     NextTurnOrderBox->ClearChildren();
 
-    // Boucle pour remplir la barre d'ordre de tour actuelle.
-    for (const FCombatantTurnInfo& Info : CombatantInfos)
+    // Remplir la barre du round en cours (grande taille) avec uniquement les combattants qui n'ont pas encore joué.
+    for (const FCombatantTurnInfo& Info : CurrentTurnInfos)
     {
         UImage* IconImage = NewObject<UImage>(this);
         if (!IconImage)
-        {
             continue;
-        }
 
-        // Si ce combattant est sélectionné et que SelectedIconTexture est défini, utiliser SelectedIconTexture ; sinon utiliser Info.Icon.
-        UTexture2D* IconToUse = nullptr;
-        if (Info.Combatant == SelectedEnemy && SelectedIconTexture)
-        {
-            IconToUse = SelectedIconTexture;
-        }
-        else
-        {
-            IconToUse = Info.Icon;
-        }
-
+        UTexture2D* IconToUse = (Info.Combatant == SelectedEnemy && SelectedIconTexture) ? SelectedIconTexture : Info.Icon;
         if (IconToUse)
         {
             IconImage->SetBrushFromTexture(IconToUse);
         }
-
-        // Appliquer une teinte par défaut (blanc).
         IconImage->SetColorAndOpacity(FLinearColor::White);
-
-        // Définir la taille souhaitée pour les icônes de la barre actuelle.
         IconImage->SetDesiredSizeOverride(FVector2D(64.f, 64.f));
         if (UHorizontalBoxSlot* NewSlot = TurnOrderBox->AddChildToHorizontalBox(IconImage))
         {
@@ -51,33 +34,19 @@ void UTurnOrderWidget::UpdateTurnOrder(const TArray<FCombatantTurnInfo>& Combata
         }
     }
 
-    // Boucle pour remplir la barre de prochain tour.
-    for (const FCombatantTurnInfo& Info : CombatantInfos)
+    // Remplir la barre du prochain tour (taille réduite) avec la liste complète.
+    for (const FCombatantTurnInfo& Info : FullTurnInfos)
     {
         UImage* IconImage = NewObject<UImage>(this);
         if (!IconImage)
-        {
             continue;
-        }
 
-        UTexture2D* IconToUse = nullptr;
-        if (Info.Combatant == SelectedEnemy && SelectedIconTexture)
-        {
-            IconToUse = SelectedIconTexture;
-        }
-        else
-        {
-            IconToUse = Info.Icon;
-        }
-
+        UTexture2D* IconToUse = (Info.Combatant == SelectedEnemy && SelectedIconTexture) ? SelectedIconTexture : Info.Icon;
         if (IconToUse)
         {
             IconImage->SetBrushFromTexture(IconToUse);
         }
-
         IconImage->SetColorAndOpacity(FLinearColor::White);
-
-        // Pour la barre du prochain tour, on utilise une taille légèrement plus petite.
         IconImage->SetDesiredSizeOverride(FVector2D(48.f, 48.f));
         if (UHorizontalBoxSlot* NewSlot = NextTurnOrderBox->AddChildToHorizontalBox(IconImage))
         {

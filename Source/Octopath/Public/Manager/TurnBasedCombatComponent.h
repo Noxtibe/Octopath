@@ -56,6 +56,9 @@ public:
     UFUNCTION()
     void OnPlayerAttack();
 
+    UFUNCTION()
+    void OnPlayerDefense();
+
     // Called when the player chooses to flee.
     UFUNCTION()
     void OnPlayerFlee();
@@ -73,6 +76,20 @@ public:
     void OnEnemyTurn();
 
     // (No events defined)
+
+        // --------------------- Public Variables ---------------------
+public:
+    // Vertical offset in world coordinates to determine the base point above the enemy.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Targeting")
+    float IndicatorWorldVerticalOffset = 150.0f;
+
+    // Additional offset in screen coordinates for fine adjustment of the widget position.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Targeting")
+    FVector2D IndicatorScreenOffset = FVector2D(0.0f, 0.0f);
+
+    // Material to apply as feedback on the selected enemy.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Feedback")
+    UMaterialInterface* SelectedEnemyLightFunctionMaterial;
 
     // --------------------- Private Functions & Variables ---------------------
 private:
@@ -112,7 +129,7 @@ private:
 
     // --- Enemy Indicator Widget ---
     // Class of the enemy indicator widget (derived from UEnemyIndicatorWidget, which itself inherits from UCommonActivatableWidget).
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Targeting", meta = (AllowPrivateAccess = "true"))
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|UI", meta = (AllowPrivateAccess = "true"))
     TSubclassOf<UEnemyIndicatorWidget> EnemyIndicatorWidgetClass;
 
     // Instance of the enemy indicator widget.
@@ -126,6 +143,12 @@ private:
     // Currently selected enemy for target selection.
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Targeting", meta = (AllowPrivateAccess = "true"))
     AActor* SelectedEnemy;
+
+    // Tableau contenant l'ordre complet des combats (pour le prochain round)
+    TArray<FCombatantTurnInfo> FullTurnInfos;
+
+    // Tableau contenant uniquement les infos des combattants restants pour le round en cours
+    TArray<FCombatantTurnInfo> CurrentRoundInfos;
 
     // Whether target selection mode is active.
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Targeting", meta = (AllowPrivateAccess = "true"))
@@ -153,6 +176,12 @@ private:
     UPROPERTY(meta = (AllowPrivateAccess = "true"))
     bool bPlayerFled;
 
+    UPROPERTY(meta = (AllowPrivateAccess = "true"))
+    bool bPlayerDefendedThisRound;
+
+    UPROPERTY(meta = (AllowPrivateAccess = "true"))
+    bool bDefenseConsumed;
+
     // Map to store original materials for selected enemies.
     UPROPERTY(meta = (AllowPrivateAccess = "true"))
     TMap<AActor*, UMaterialInterface*> OriginalMaterials;
@@ -160,18 +189,4 @@ private:
     // Helper functions to apply/remove feedback.
     void ApplyFeedbackToEnemy(AActor* Enemy);
     void RemoveFeedbackFromEnemy(AActor* Enemy);
-
-    // --------------------- Public Variables ---------------------
-public:
-    // Vertical offset in world coordinates to determine the base point above the enemy.
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Targeting")
-    float IndicatorWorldVerticalOffset = 150.0f;
-
-    // Additional offset in screen coordinates for fine adjustment of the widget position.
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Targeting")
-    FVector2D IndicatorScreenOffset = FVector2D(0.0f, 0.0f);
-
-    // Material to apply as feedback on the selected enemy.
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Feedback")
-    UMaterialInterface* SelectedEnemyLightFunctionMaterial;
 };

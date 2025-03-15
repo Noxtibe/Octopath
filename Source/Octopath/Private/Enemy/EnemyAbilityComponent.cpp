@@ -1,3 +1,5 @@
+// EnemyAbilityComponent.cpp
+
 #include "Enemy/EnemyAbilityComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Manager/StatComponent.h"
@@ -8,37 +10,30 @@ UEnemyAbilityComponent::UEnemyAbilityComponent()
 	PrimaryComponentTick.bCanEverTick = false;
 }
 
-void UEnemyAbilityComponent::ExecuteDefaultAttack()
+float UEnemyAbilityComponent::ExecuteDefaultAttack()
 {
+	UE_LOG(LogTemp, Log, TEXT("EnemyAbilityComponent::ExecuteDefaultAttack - Called"));
+
 	// Get the owner (the enemy)
 	AActor* Owner = GetOwner();
 	if (!Owner)
 	{
-		return;
+		UE_LOG(LogTemp, Warning, TEXT("EnemyAbilityComponent::ExecuteDefaultAttack - Owner is null"));
+		return 0.f;
 	}
 
 	// Retrieve the enemy's StatComponent to get the PhysicalAttack value.
 	UStatComponent* EnemyStat = Owner->FindComponentByClass<UStatComponent>();
 	if (!EnemyStat)
 	{
-		return;
+		UE_LOG(LogTemp, Warning, TEXT("EnemyAbilityComponent::ExecuteDefaultAttack - StatComponent not found"));
+		return 0.f;
 	}
 
 	// Use the enemy's PhysicalAttack value as the damage amount.
 	float DamageAmount = EnemyStat->PhysicalAttack;
+	UE_LOG(LogTemp, Log, TEXT("EnemyAbilityComponent::ExecuteDefaultAttack - DamageAmount calculated: %f"), DamageAmount);
 
-	// Get the player character (assumed to be the target).
-	ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
-	if (!PlayerCharacter)
-	{
-		return;
-	}
-
-	// Retrieve the player's StatComponent.
-	UStatComponent* PlayerStat = PlayerCharacter->FindComponentByClass<UStatComponent>();
-	if (PlayerStat)
-	{
-		// Apply damage to the player (false indicates physical damage).
-		PlayerStat->ApplyDamage(DamageAmount, false);
-	}
+	// Return the calculated damage (do not apply it here).
+	return DamageAmount;
 }

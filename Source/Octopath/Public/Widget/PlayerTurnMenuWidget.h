@@ -33,7 +33,7 @@ public:
 	FOnAttackSelected OnAttackSelected;
 
 	UPROPERTY(BlueprintAssignable, Category = "Actions")
-	FOnFleeSelected OnDefenseSelected;
+	FOnDefenseSelected OnDefenseSelected;
 
 	UPROPERTY(BlueprintAssignable, Category = "Actions")
 	FOnFleeSelected OnFleeSelected;

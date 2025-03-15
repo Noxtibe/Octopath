@@ -34,7 +34,8 @@ public:
      * @param SelectedEnemy The currently selected enemy (to highlight its icon).
      */
     UFUNCTION(BlueprintCallable, Category = "Turn Order")
-    void UpdateTurnOrder(const TArray<FCombatantTurnInfo>& CombatantInfos, AActor* SelectedEnemy);
+    void UpdateTurnOrder(const TArray<FCombatantTurnInfo>& CurrentTurnInfos, const TArray<FCombatantTurnInfo>& FullTurnInfos, AActor* SelectedEnemy = nullptr);
+
 
     // Texture to use when a combatant is selected (highlight texture, e.g. yellow).
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Turn Order")
