@@ -7,6 +7,7 @@
 #include "Widget/TurnOrderWidget.h"
 #include "Widget/PlayerTurnMenuWidget.h"
 #include "Widget/PlayerStatsWidget.h"
+#include "Widget/PlayerAbilitiesMenuWidget.h"
 #include "Widget/EnemyIndicatorWidget.h"
 
 #include "Kismet/GameplayStatics.h"
@@ -175,6 +176,7 @@ void UTurnBasedCombatComponent::StartCombat()
                 {
                     PlayerTurnMenuWidget->AddToViewport();
                     PlayerTurnMenuWidget->OnAttackSelected.AddDynamic(this, &UTurnBasedCombatComponent::OnPlayerAttack);
+                    PlayerTurnMenuWidget->OnAbilitiesSelected.AddDynamic(this, &UTurnBasedCombatComponent::ShowAbilitiesMenu);
                     PlayerTurnMenuWidget->OnDefenseSelected.AddDynamic(this, &UTurnBasedCombatComponent::OnPlayerDefense);
                     PlayerTurnMenuWidget->OnFleeSelected.AddDynamic(this, &UTurnBasedCombatComponent::OnPlayerFlee);
                     UE_LOG(LogTemp, Log, TEXT("StartCombat - PlayerTurnMenuWidget created and events bound"));
@@ -403,6 +405,38 @@ void UTurnBasedCombatComponent::OnPlayerAttack()
     UE_LOG(LogTemp, Log, TEXT("OnPlayerAttack - End"));
 }
 
+void UTurnBasedCombatComponent::ShowAbilitiesMenu()
+{
+    UE_LOG(LogTemp, Log, TEXT("ShowAbilitiesMenu called"));
+
+    // Hide the main action menu
+    if (IsValid(PlayerTurnMenuWidget))
+    {
+        PlayerTurnMenuWidget->SetVisibility(ESlateVisibility::Hidden);
+    }
+
+    // Create or show the abilities widget
+    if (!IsValid(PlayerAbilitiesMenuWidget) && IsValid(GetWorld()))
+    {
+        APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
+        if (IsValid(PC) && PlayerAbilitiesMenuWidgetClass)
+        {
+            PlayerAbilitiesMenuWidget = CreateWidget<UPlayerAbilitiesMenuWidget>(PC, PlayerAbilitiesMenuWidgetClass);
+            if (IsValid(PlayerAbilitiesMenuWidget))
+            {
+                PlayerAbilitiesMenuWidget->AddToViewport();
+                PlayerAbilitiesMenuWidget->PopulateAbilitiesMenu();
+                UE_LOG(LogTemp, Log, TEXT("ShowAbilitiesMenu - PlayerAbilitiesMenuWidget created and added to viewport"));
+            }
+        }
+    }
+    else if (IsValid(PlayerAbilitiesMenuWidget))
+    {
+        PlayerAbilitiesMenuWidget->SetVisibility(ESlateVisibility::Visible);
+        UE_LOG(LogTemp, Log, TEXT("ShowAbilitiesMenu - PlayerAbilitiesMenuWidget set to visible"));
+    }
+}
+
 void UTurnBasedCombatComponent::OnPlayerDefense()
 {
     UE_LOG(LogTemp, Log, TEXT("OnPlayerDefense - Called"));
@@ -567,6 +601,7 @@ void UTurnBasedCombatComponent::NextTurn()
             {
                 PlayerTurnMenuWidget->AddToViewport();
                 PlayerTurnMenuWidget->OnAttackSelected.AddDynamic(this, &UTurnBasedCombatComponent::OnPlayerAttack);
+                PlayerTurnMenuWidget->OnAbilitiesSelected.AddDynamic(this, &UTurnBasedCombatComponent::ShowAbilitiesMenu);
                 PlayerTurnMenuWidget->OnDefenseSelected.AddDynamic(this, &UTurnBasedCombatComponent::OnPlayerDefense);
                 PlayerTurnMenuWidget->OnFleeSelected.AddDynamic(this, &UTurnBasedCombatComponent::OnPlayerFlee);
                 UE_LOG(LogTemp, Log, TEXT("NextTurn - PlayerTurnMenuWidget created and events bound"));

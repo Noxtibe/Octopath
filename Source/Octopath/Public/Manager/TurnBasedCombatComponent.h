@@ -9,6 +9,7 @@
 class UTurnOrderWidget;
 class UPlayerTurnMenuWidget;
 class UPlayerStatsWidget;
+class UPlayerAbilitiesMenuWidget;
 class UEnemyIndicatorWidget;
 class UUserWidget;
 class UCanvasPanel;
@@ -58,6 +59,9 @@ public:
 	/** Called when the player presses Attack */
 	UFUNCTION()
 	void OnPlayerAttack();
+
+	UFUNCTION()
+	void ShowAbilitiesMenu();
 
 	/** Called when the player presses Defense */
 	UFUNCTION()
@@ -149,6 +153,14 @@ private:
 	/** Instance of the player's stats widget */
 	UPROPERTY(meta = (AllowPrivateAccess = "true"))
 	UPlayerStatsWidget* PlayerStatsWidget;
+
+	// Class of the player's abilities menu widget (derived from UPlayerAbilitiesMenuWidget)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|UI", meta = (AllowPrivateAccess = "true"))
+	TSubclassOf<UPlayerAbilitiesMenuWidget> PlayerAbilitiesMenuWidgetClass;
+
+	// Instance du widget des compétences.
+	UPROPERTY(meta = (AllowPrivateAccess = "true"))
+	UPlayerAbilitiesMenuWidget* PlayerAbilitiesMenuWidget;
 
 	// --- Enemy Indicator Widget ---
 

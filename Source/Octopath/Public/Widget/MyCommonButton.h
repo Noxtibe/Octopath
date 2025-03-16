@@ -17,12 +17,10 @@ class OCTOPATH_API UMyCommonButton : public UCommonButtonBase
 
 public:
 	UMyCommonButton();
+	// Override the native click handler to broadcast our dynamic delegate
+	virtual void NativeOnClicked() override;
 
 	// Dynamic delegate that can be bound via AddDynamic in other classes (such as your menu widget)
 	UPROPERTY(BlueprintAssignable, Category = "Common Button")
 	FMyCommonButtonClicked OnMyClicked;
-
-protected:
-	// Override the native click handler to broadcast our dynamic delegate
-	virtual void NativeOnClicked() override;
 };

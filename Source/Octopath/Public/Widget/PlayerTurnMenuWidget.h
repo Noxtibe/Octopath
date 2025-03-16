@@ -18,11 +18,15 @@ class OCTOPATH_API UPlayerTurnMenuWidget : public UCommonActivatableWidget
 public:
 	// Public Events
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnAttackSelected);
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnAbilitiesSelected);
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDefenseSelected);
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnFleeSelected);
 
 	UPROPERTY(BlueprintAssignable, Category = "Actions")
 	FOnAttackSelected OnAttackSelected;
+
+	UPROPERTY(BlueprintAssignable, Category = "Actions")
+	FOnAbilitiesSelected OnAbilitiesSelected;
 
 	UPROPERTY(BlueprintAssignable, Category = "Actions")
 	FOnDefenseSelected OnDefenseSelected;
@@ -35,6 +39,10 @@ public:
 	/** Bindable widget reference for the Attack button (set in UMG Designer) */
 	UPROPERTY(meta = (BindWidget))
 	UMyCommonButton* AttackButton;
+
+	/** Bindable widget reference for the Abilities button (set in UMG Designer) */
+	UPROPERTY(meta = (BindWidget))
+	UMyCommonButton* AbilitiesButton;
 
 	/** Bindable widget reference for the Defense button (set in UMG Designer) */
 	UPROPERTY(meta = (BindWidget))
@@ -49,9 +57,13 @@ protected:
 	/** Overrides the widget construction to bind button events */
 	virtual void NativeConstruct() override;
 
-	/** Handles the event when the Attack button is clicked */
+	/** Handles the event when the Abilities button is clicked */
 	UFUNCTION()
 	void HandleAttackClicked(UMyCommonButton* Button);
+
+	/** Handles the event when the Attack button is clicked */
+	UFUNCTION()
+	void HandleAbilitiesClicked(UMyCommonButton* Button);
 
 	/** Handles the event when the Defense button is clicked */
 	UFUNCTION()
