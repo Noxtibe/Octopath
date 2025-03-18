@@ -40,7 +40,7 @@ public:
 	 * @return The resulting effect value (e.g., damage, healing, or modifier value).
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Ally Abilities")
-	float ExecuteSkill(USkillData* Skill);
+	float ExecuteSkill(USkillData* Skill, const TArray<AActor*>& Targets);
 
 	/** Array of skills available to this allied character */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ally Abilities")

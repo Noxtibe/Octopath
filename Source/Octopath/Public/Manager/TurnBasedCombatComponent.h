@@ -95,6 +95,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Combat|Enemy")
 	void OnEnemyTurn();
 
+	UFUNCTION()
+	void HideAbilitiesMenu();
+
 	// -----------------------------------------------------------
 	// Public Variables
 	// -----------------------------------------------------------
@@ -237,4 +240,17 @@ private:
 	/** Map to store original materials for selected enemies */
 	UPROPERTY(meta = (AllowPrivateAccess = "true"))
 	TMap<AActor*, UMaterialInterface*> OriginalMaterials;
+
+	// --- Ability Target Selection (New) ---
+	/** The currently selected ability waiting for target selection (null if not in selection mode) */
+	UPROPERTY()
+	USkillData* CurrentSelectedAbility;
+
+	/** Flag indicating if we are in ability target selection mode */
+	UPROPERTY()
+	bool bIsSelectingAbilityTarget = false;
+
+	/** The actor currently selected as the target for the ability */
+	UPROPERTY()
+	AActor* AbilityTarget;
 };
