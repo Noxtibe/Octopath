@@ -11,6 +11,7 @@ class UPlayerTurnMenuWidget;
 class UPlayerStatsWidget;
 class UPlayerAbilitiesMenuWidget;
 class UEnemyIndicatorWidget;
+class USkillData;
 class UUserWidget;
 class UCanvasPanel;
 
@@ -62,6 +63,10 @@ public:
 
 	UFUNCTION()
 	void ShowAbilitiesMenu();
+
+	// Called when an ability is selected from the abilities menu.
+	UFUNCTION()
+	void OnAbilitySelected(USkillData* SelectedSkill);
 
 	/** Called when the player presses Defense */
 	UFUNCTION()
@@ -161,6 +166,10 @@ private:
 	// Instance du widget des compétences.
 	UPROPERTY(meta = (AllowPrivateAccess = "true"))
 	UPlayerAbilitiesMenuWidget* PlayerAbilitiesMenuWidget;
+
+	// Opacity of the main action menu when the abilities menu is shown (0 = invisible, 1 = fully visible)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|UI", meta = (AllowPrivateAccess = "true"))
+	float MainMenuOpacityWhenAbilitiesShown = 0.5f;
 
 	// --- Enemy Indicator Widget ---
 

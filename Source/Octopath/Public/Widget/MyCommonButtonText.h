@@ -28,7 +28,6 @@ public:
     FMyCommonButtonTextClicked OnMyTextClicked;
 
 public:
-    // BindWidget: Associez ce TextBlock dans votre Blueprint dérivé de UMyCommonButtonText.
     UPROPERTY(meta = (BindWidget))
     UTextBlock* ButtonTextBlock;
 };

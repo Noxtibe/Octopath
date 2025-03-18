@@ -6,7 +6,6 @@
 #include "PlayerAbilitiesMenuWidget.generated.h"
 
 class UVerticalBox;
-class UMyCommonButton;
 class UMyCommonButtonText;
 
 /**

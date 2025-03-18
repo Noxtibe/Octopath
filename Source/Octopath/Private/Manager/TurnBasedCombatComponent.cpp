@@ -409,10 +409,11 @@ void UTurnBasedCombatComponent::ShowAbilitiesMenu()
 {
     UE_LOG(LogTemp, Log, TEXT("ShowAbilitiesMenu called"));
 
-    // Hide the main action menu
+    // Instead of hiding the main action menu, we adjust his opacity
     if (IsValid(PlayerTurnMenuWidget))
     {
-        PlayerTurnMenuWidget->SetVisibility(ESlateVisibility::Hidden);
+        // Set the render opacity to the value defined in MainMenuOpacityWhenAbilitiesShown
+        PlayerTurnMenuWidget->SetRenderOpacity(MainMenuOpacityWhenAbilitiesShown);
     }
 
     // Create or show the abilities widget
@@ -424,6 +425,7 @@ void UTurnBasedCombatComponent::ShowAbilitiesMenu()
             PlayerAbilitiesMenuWidget = CreateWidget<UPlayerAbilitiesMenuWidget>(PC, PlayerAbilitiesMenuWidgetClass);
             if (IsValid(PlayerAbilitiesMenuWidget))
             {
+                PlayerAbilitiesMenuWidget->OnAbilitySelected.AddDynamic(this, &UTurnBasedCombatComponent::OnAbilitySelected);
                 PlayerAbilitiesMenuWidget->AddToViewport();
                 PlayerAbilitiesMenuWidget->PopulateAbilitiesMenu();
                 UE_LOG(LogTemp, Log, TEXT("ShowAbilitiesMenu - PlayerAbilitiesMenuWidget created and added to viewport"));
@@ -435,6 +437,80 @@ void UTurnBasedCombatComponent::ShowAbilitiesMenu()
         PlayerAbilitiesMenuWidget->SetVisibility(ESlateVisibility::Visible);
         UE_LOG(LogTemp, Log, TEXT("ShowAbilitiesMenu - PlayerAbilitiesMenuWidget set to visible"));
     }
+}
+
+void UTurnBasedCombatComponent::OnAbilitySelected(USkillData* SelectedSkill)
+{
+    if (!SelectedSkill)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("OnAbilitySelected: SelectedSkill is null"));
+        return;
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("OnAbilitySelected called with skill: %s"), *SelectedSkill->SkillName.ToString());
+
+    // Get the player's character
+    AActor* PlayerActor = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
+    if (!IsValid(PlayerActor))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("OnAbilitySelected: Player actor not found"));
+        return;
+    }
+
+    // Get the player's AllyAbilityComponent
+    UAllyAbilityComponent* AllyAbilityComp = PlayerActor->FindComponentByClass<UAllyAbilityComponent>();
+    if (!IsValid(AllyAbilityComp))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("OnAbilitySelected: AllyAbilityComponent not found"));
+        return;
+    }
+
+    // Determine targets based on the skill's TargetType.
+    TArray<AActor*> Targets;
+    switch (SelectedSkill->TargetType)
+    {
+    case ETargetType::Self:
+    {
+        Targets.Add(PlayerActor);
+        break;
+    }
+    case ETargetType::Enemy:
+    {
+        // For simplicity, get all actors tagged "Enemy"
+        TArray<AActor*> FoundEnemies;
+        UGameplayStatics::GetAllActorsWithTag(GetWorld(), FName("Enemy"), FoundEnemies);
+        for (AActor* Enemy : FoundEnemies)
+        {
+            if (IsValid(Enemy))
+            {
+                Targets.Add(Enemy);
+            }
+        }
+        break;
+    }
+    case ETargetType::Ally:
+    {
+        // Ici, vous pouvez ajouter la logique pour récupérer les alliés, par exemple.
+        break;
+    }
+    default:
+        break;
+    }
+
+    // Execute the ability using the AllyAbilityComponent.
+    float EffectResult = AllyAbilityComp->ExecuteSkill(SelectedSkill);
+    UE_LOG(LogTemp, Log, TEXT("Ability executed with result: %f"), EffectResult);
+
+    // Optionally, hide the abilities menu and restore the main action menu.
+    if (IsValid(PlayerAbilitiesMenuWidget))
+    {
+        PlayerAbilitiesMenuWidget->SetVisibility(ESlateVisibility::Hidden);
+    }
+    if (IsValid(PlayerTurnMenuWidget))
+    {
+        PlayerTurnMenuWidget->SetRenderOpacity(1.0f);
+    }
+    NextTurn();
 }
 
 void UTurnBasedCombatComponent::OnPlayerDefense()

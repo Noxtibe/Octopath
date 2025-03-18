@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "CommonActivatableWidget.h"
 #include "Widget/MyCommonButton.h"
+#include "Widget/MyCommonButtonText.h"
 #include "PlayerTurnMenuWidget.generated.h"
 
 /**
