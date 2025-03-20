@@ -124,6 +124,8 @@ private:
 	/** Removes visual feedback from the specified enemy */
 	void RemoveFeedbackFromEntity(AActor* Enemy);
 
+	void UpdateIndicatorWidgetForTarget(AActor* Target, UEnemyIndicatorWidget* IndicatorWidget);
+
 	// -----------------------------------------------------------
 	// Private Variables
 	// -----------------------------------------------------------
@@ -257,4 +259,8 @@ private:
 	// Array of default targets when the ability targets "all" enemies (e.g. when TargetMode is Random / All)
 	UPROPERTY()
 	TArray<AActor*> DefaultAbilityTargets;
+
+	/** Map storing indicator widgets for each target in multi-target abilities */
+	UPROPERTY()
+	TMap<AActor*, UEnemyIndicatorWidget*> MultiTargetIndicatorWidgets;
 };

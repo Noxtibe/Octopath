@@ -233,7 +233,7 @@ void UTurnBasedCombatComponent::TickComponent(float DeltaTime, ELevelTick TickTy
             return;
         }
 
-        // If the ability is self-targeted or a Heal ability, the target is always the player.
+        // Self-target or heal: target is the player.
         if (CurrentSelectedAbility->TargetType == ETargetType::Self || CurrentSelectedAbility->AbilityCategory == EAbilityCategory::Heal)
         {
             AActor* PlayerActor = UGameplayStatics::GetPlayerCharacter(World, 0);
@@ -241,7 +241,6 @@ void UTurnBasedCombatComponent::TickComponent(float DeltaTime, ELevelTick TickTy
             {
                 SetEntityIndicator(PlayerActor);
             }
-            // Wait for confirmation.
             if (PC->WasInputKeyJustPressed(EKeys::LeftMouseButton))
             {
                 TArray<AActor*> Targets;
@@ -287,7 +286,7 @@ void UTurnBasedCombatComponent::TickComponent(float DeltaTime, ELevelTick TickTy
             }
             if (bValidTarget)
             {
-                // For modes Single, Multiple, or Random, auto-select a default target if not in "All" mode.
+                // For Single, Multiple, or Random, if not All, update the single target.
                 if (CurrentSelectedAbility->TargetMode != ETargetMode::All)
                 {
                     if (AbilityTarget != HitActor)
@@ -297,12 +296,19 @@ void UTurnBasedCombatComponent::TickComponent(float DeltaTime, ELevelTick TickTy
                         UE_LOG(LogTemp, Log, TEXT("TickComponent (Ability mode) - Target locked: %s"), *HitActor->GetName());
                     }
                 }
-                // On confirmation (left click).
+                // On confirmation (left click)
                 if (PC->WasInputKeyJustPressed(EKeys::LeftMouseButton))
                 {
                     TArray<AActor*> Targets;
                     if (CurrentSelectedAbility->TargetMode == ETargetMode::All)
                     {
+                        // Update positions for each multi-target widget.
+                        for (auto& Elem : MultiTargetIndicatorWidgets)
+                        {
+                            AActor* Target = Elem.Key;
+                            UEnemyIndicatorWidget* IndicatorWidget = Elem.Value;
+                            UpdateIndicatorWidgetForTarget(Target, IndicatorWidget);
+                        }
                         Targets = DefaultAbilityTargets;
                     }
                     else
@@ -329,11 +335,14 @@ void UTurnBasedCombatComponent::TickComponent(float DeltaTime, ELevelTick TickTy
                     CurrentSelectedAbility = nullptr;
                     AbilityTarget = nullptr;
                     DefaultAbilityTargets.Empty();
-                    if (IsValid(CurrentEnemyIndicatorWidget))
+                    for (auto& Elem : MultiTargetIndicatorWidgets)
                     {
-                        CurrentEnemyIndicatorWidget->RemoveFromParent();
-                        CurrentEnemyIndicatorWidget = nullptr;
+                        if (IsValid(Elem.Value))
+                        {
+                            Elem.Value->RemoveFromParent();
+                        }
                     }
+                    MultiTargetIndicatorWidgets.Empty();
                     if (IsValid(PlayerTurnMenuWidget))
                     {
                         PlayerTurnMenuWidget->SetRenderOpacity(1.0f);
@@ -395,14 +404,29 @@ void UTurnBasedCombatComponent::SetEntityIndicator(AActor* NewTarget)
 {
     UE_LOG(LogTemp, Log, TEXT("SetEntityIndicator - Called with target: %s"), IsValid(NewTarget) ? *NewTarget->GetName() : TEXT("None"));
 
+    // Si une cible était déjà sélectionnée et différente, supprimer son feedback.
     if (IsValid(EntityIndicatorTarget) && EntityIndicatorTarget != NewTarget)
     {
         RemoveFeedbackFromEntity(EntityIndicatorTarget);
         UE_LOG(LogTemp, Log, TEXT("SetEntityIndicator - Removed feedback from previous target: %s"), *EntityIndicatorTarget->GetName());
     }
 
+    // Pour le mode single-target, vider les widgets multi-cibles.
+    if (!CurrentSelectedAbility || CurrentSelectedAbility->TargetMode != ETargetMode::All)
+    {
+        for (auto& Elem : MultiTargetIndicatorWidgets)
+        {
+            if (IsValid(Elem.Value))
+            {
+                Elem.Value->RemoveFromParent();
+            }
+        }
+        MultiTargetIndicatorWidgets.Empty();
+    }
+
     EntityIndicatorTarget = NewTarget;
 
+    // Si aucun widget n'est créé pour le mode single-target, le créer.
     if (!IsValid(CurrentEnemyIndicatorWidget))
     {
         UWorld* World = GetWorld();
@@ -579,6 +603,29 @@ void UTurnBasedCombatComponent::OnAbilitySelected(USkillData* SelectedSkill)
     }
     UE_LOG(LogTemp, Log, TEXT("OnAbilitySelected called with skill: %s"), *SelectedSkill->SkillName.ToString());
 
+    // Nettoyage si on passe d'un mode multi-cible à un mode mono-cible.
+    if (SelectedSkill->TargetMode != ETargetMode::All)
+    {
+        // Supprimer le feedback et les widgets pour toutes les cibles précédentes en mode multi.
+        for (AActor* Target : DefaultAbilityTargets)
+        {
+            if (IsValid(Target))
+            {
+                RemoveFeedbackFromEntity(Target);
+            }
+        }
+        DefaultAbilityTargets.Empty();
+
+        for (auto& Elem : MultiTargetIndicatorWidgets)
+        {
+            if (IsValid(Elem.Value))
+            {
+                Elem.Value->RemoveFromParent();
+            }
+        }
+        MultiTargetIndicatorWidgets.Empty();
+    }
+
     // Get player's character.
     AActor* PlayerActor = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
     if (!IsValid(PlayerActor))
@@ -599,13 +646,13 @@ void UTurnBasedCombatComponent::OnAbilitySelected(USkillData* SelectedSkill)
     CurrentSelectedAbility = SelectedSkill;
     bIsSelectingAbilityTarget = true;
 
-    // Pour une capacité Self, la cible par défaut est le joueur.
+    // Pour une capacité Self ou Heal, la cible par défaut est le joueur.
     if (SelectedSkill->TargetType == ETargetType::Self || SelectedSkill->AbilityCategory == EAbilityCategory::Heal)
     {
         SetEntityIndicator(PlayerActor);
         UE_LOG(LogTemp, Log, TEXT("OnAbilitySelected - Self-target ability selection mode activated"));
     }
-    // Pour les capacités offensives ou de debuff.
+    // Pour les compétences offensives ou de debuff.
     else if (SelectedSkill->AbilityCategory == EAbilityCategory::Offensive ||
         SelectedSkill->AbilityCategory == EAbilityCategory::Debuff)
     {
@@ -641,7 +688,7 @@ void UTurnBasedCombatComponent::OnAbilitySelected(USkillData* SelectedSkill)
     }
     else if (SelectedSkill->TargetType == ETargetType::Ally)
     {
-        // Pour les buffs sur alliés, on pourrait définir ici une cible par défaut (ex. le joueur)
+        // Pour les buffs sur alliés, par défaut on peut choisir le joueur.
         SetEntityIndicator(PlayerActor);
         UE_LOG(LogTemp, Log, TEXT("OnAbilitySelected - Ally-target ability selection mode activated (default set to self)"));
     }
@@ -742,17 +789,31 @@ void UTurnBasedCombatComponent::HideAbilitiesMenu()
     {
         PlayerTurnMenuWidget->SetRenderOpacity(1.0f);
     }
-    // Cancel any ability target selection.
     bIsSelectingAbilityTarget = false;
     CurrentSelectedAbility = nullptr;
     AbilityTarget = nullptr;
-    // Remove the indicator widget if present.
+
     if (IsValid(CurrentEnemyIndicatorWidget))
     {
         CurrentEnemyIndicatorWidget->RemoveFromParent();
         CurrentEnemyIndicatorWidget = nullptr;
     }
-    // Remove feedback from default ability targets.
+
+    for (auto& Elem : MultiTargetIndicatorWidgets)
+    {
+        if (IsValid(Elem.Value))
+        {
+            Elem.Value->RemoveFromParent();
+        }
+    }
+    MultiTargetIndicatorWidgets.Empty();
+
+    if (IsValid(EntityIndicatorTarget))
+    {
+        RemoveFeedbackFromEntity(EntityIndicatorTarget);
+        EntityIndicatorTarget = nullptr;
+    }
+
     for (AActor* Target : DefaultAbilityTargets)
     {
         if (IsValid(Target))
@@ -761,12 +822,6 @@ void UTurnBasedCombatComponent::HideAbilitiesMenu()
         }
     }
     DefaultAbilityTargets.Empty();
-    // Also remove feedback from any currently indicated entity.
-    if (IsValid(EntityIndicatorTarget))
-    {
-        RemoveFeedbackFromEntity(EntityIndicatorTarget);
-        EntityIndicatorTarget = nullptr;
-    }
 }
 
 void UTurnBasedCombatComponent::NextTurn()
@@ -1166,34 +1221,69 @@ void UTurnBasedCombatComponent::OnPlayerFlee()
 //////////////////////////////////////////////////////////////////////////
 // Feedback Helper Functions
 
-void UTurnBasedCombatComponent::ApplyFeedbackToEntity(AActor* Enemy)
+void UTurnBasedCombatComponent::ApplyFeedbackToEntity(AActor* Target)
 {
-    UE_LOG(LogTemp, Log, TEXT("ApplyFeedbackToEntity - Called for enemy: %s"), IsValid(Enemy) ? *Enemy->GetName() : TEXT("None"));
-    if (!IsValid(Enemy) || !IsValid(EntityIndicatorLightFunctionMaterial))
+    UE_LOG(LogTemp, Log, TEXT("ApplyFeedbackToEntity - Called for target: %s"), IsValid(Target) ? *Target->GetName() : TEXT("None"));
+    if (!IsValid(Target) || !IsValid(EntityIndicatorLightFunctionMaterial))
     {
         return;
     }
 
-    UPrimitiveComponent* Mesh = Cast<UPrimitiveComponent>(Enemy->GetComponentByClass(USkeletalMeshComponent::StaticClass()));
+    // Retrieve the mesh (try skeletal first, then static).
+    UPrimitiveComponent* Mesh = Cast<UPrimitiveComponent>(Target->GetComponentByClass(USkeletalMeshComponent::StaticClass()));
     if (!IsValid(Mesh))
     {
-        Mesh = Cast<UPrimitiveComponent>(Enemy->GetComponentByClass(UStaticMeshComponent::StaticClass()));
+        Mesh = Cast<UPrimitiveComponent>(Target->GetComponentByClass(UStaticMeshComponent::StaticClass()));
     }
     if (!IsValid(Mesh))
     {
-        UE_LOG(LogTemp, Warning, TEXT("ApplyFeedbackToEntity - Mesh not found for enemy: %s"), *Enemy->GetName());
+        UE_LOG(LogTemp, Warning, TEXT("ApplyFeedbackToEntity - Mesh not found for target: %s"), *Target->GetName());
         return;
     }
 
-    if (!OriginalMaterials.Contains(Enemy))
+    // Store original material if not already stored.
+    if (!OriginalMaterials.Contains(Target))
     {
         UMaterialInterface* OrigMat = Mesh->GetMaterial(0);
-        OriginalMaterials.Add(Enemy, OrigMat);
-        UE_LOG(LogTemp, Log, TEXT("ApplyFeedbackToEntity - Original material stored for enemy: %s"), *Enemy->GetName());
+        OriginalMaterials.Add(Target, OrigMat);
+        UE_LOG(LogTemp, Log, TEXT("ApplyFeedbackToEntity - Original material stored for target: %s"), *Target->GetName());
     }
 
+    // Apply feedback material.
     Mesh->SetMaterial(0, EntityIndicatorLightFunctionMaterial);
-    UE_LOG(LogTemp, Log, TEXT("ApplyFeedbackToEntity - Applied selected enemy light function material to enemy: %s"), *Enemy->GetName());
+    UE_LOG(LogTemp, Log, TEXT("ApplyFeedbackToEntity - Applied indicator material to target: %s"), *Target->GetName());
+
+    // If in multi-target mode ("All"), manage individual widgets.
+    if (CurrentSelectedAbility && CurrentSelectedAbility->TargetMode == ETargetMode::All)
+    {
+        if (!MultiTargetIndicatorWidgets.Contains(Target))
+        {
+            APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
+            if (IsValid(PC) && IsValid(EnemyIndicatorWidgetClass))
+            {
+                UEnemyIndicatorWidget* IndicatorWidget = CreateWidget<UEnemyIndicatorWidget>(PC, EnemyIndicatorWidgetClass);
+                if (IsValid(IndicatorWidget))
+                {
+                    IndicatorWidget->AddToViewport();
+                    MultiTargetIndicatorWidgets.Add(Target, IndicatorWidget);
+                    UE_LOG(LogTemp, Log, TEXT("ApplyFeedbackToEntity - Created indicator widget for target: %s"), *Target->GetName());
+                }
+            }
+        }
+        if (UEnemyIndicatorWidget** pIndicatorWidget = MultiTargetIndicatorWidgets.Find(Target))
+        {
+            UEnemyIndicatorWidget* IndicatorWidget = *pIndicatorWidget;
+            UpdateIndicatorWidgetForTarget(Target, IndicatorWidget);
+        }
+    }
+    else
+    {
+        // For single-target mode, nous utilisons CurrentEnemyIndicatorWidget déjà créé par SetEntityIndicator.
+        if (IsValid(CurrentEnemyIndicatorWidget))
+        {
+            UpdateEnemyIndicatorPosition();
+        }
+    }
 }
 
 void UTurnBasedCombatComponent::RemoveFeedbackFromEntity(AActor* Enemy)
@@ -1220,5 +1310,32 @@ void UTurnBasedCombatComponent::RemoveFeedbackFromEntity(AActor* Enemy)
         Mesh->SetMaterial(0, OriginalMaterials[Enemy]);
         OriginalMaterials.Remove(Enemy);
         UE_LOG(LogTemp, Log, TEXT("RemoveFeedbackFromEntity - Restored original material for enemy: %s"), *Enemy->GetName());
+    }
+}
+
+void UTurnBasedCombatComponent::UpdateIndicatorWidgetForTarget(AActor* Target, UEnemyIndicatorWidget* IndicatorWidget)
+{
+    if (!IsValid(Target) || !IsValid(IndicatorWidget))
+    {
+        return;
+    }
+    APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
+    if (!IsValid(PC))
+    {
+        return;
+    }
+    FVector WorldLocation = Target->GetActorLocation() + FVector(0.f, 0.f, IndicatorWorldVerticalOffset);
+    FVector2D ScreenPosition;
+    if (!PC->ProjectWorldLocationToScreen(WorldLocation, ScreenPosition))
+    {
+        return;
+    }
+    ScreenPosition += IndicatorScreenOffset;
+    IndicatorWidget->SetAlignmentInViewport(FVector2D(0.5f, 1.0f));
+    IndicatorWidget->SetPositionInViewport(ScreenPosition, false);
+    // Optionnel : mettre à jour le texte si Target a un StatComponent.
+    if (UStatComponent* StatComp = Target->FindComponentByClass<UStatComponent>())
+    {
+        IndicatorWidget->SetEnemyName(StatComp->EntityName);
     }
 }
