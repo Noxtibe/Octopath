@@ -21,7 +21,7 @@ UTurnBasedCombatComponent::UTurnBasedCombatComponent()
 {
     PrimaryComponentTick.bCanEverTick = true;
     CurrentTurnIndex = 0;
-    SelectedEnemy = nullptr;
+    EntityIndicatorTarget = nullptr;
     CurrentEnemyIndicatorWidget = nullptr;
     bIsSelectingTarget = false;
     bTargetLocked = false;
@@ -154,7 +154,7 @@ void UTurnBasedCombatComponent::StartCombat()
 
     if (IsValid(TurnOrderWidget))
     {
-        TurnOrderWidget->UpdateTurnOrder(CurrentRoundInfos, FullTurnInfos, SelectedEnemy);
+        TurnOrderWidget->UpdateTurnOrder(CurrentRoundInfos, FullTurnInfos, EntityIndicatorTarget);
         UE_LOG(LogTemp, Log, TEXT("StartCombat - TurnOrderWidget updated"));
     }
 
@@ -220,7 +220,7 @@ void UTurnBasedCombatComponent::TickComponent(float DeltaTime, ELevelTick TickTy
     Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
     // --- Ability Target Selection Mode ---
-    if (bIsSelectingAbilityTarget)
+    if (bIsSelectingAbilityTarget && CurrentSelectedAbility)
     {
         UWorld* World = GetWorld();
         if (!IsValid(World))
@@ -232,16 +232,51 @@ void UTurnBasedCombatComponent::TickComponent(float DeltaTime, ELevelTick TickTy
         {
             return;
         }
-        FHitResult Hit;
-        if (!PC->GetHitResultUnderCursorByChannel(ETraceTypeQuery::TraceTypeQuery1, true, Hit))
+
+        // If the ability is self-targeted or a Heal ability, the target is always the player.
+        if (CurrentSelectedAbility->TargetType == ETargetType::Self || CurrentSelectedAbility->AbilityCategory == EAbilityCategory::Heal)
         {
-            return;
+            AActor* PlayerActor = UGameplayStatics::GetPlayerCharacter(World, 0);
+            if (IsValid(PlayerActor))
+            {
+                SetEntityIndicator(PlayerActor);
+            }
+            // Wait for confirmation.
+            if (PC->WasInputKeyJustPressed(EKeys::LeftMouseButton))
+            {
+                TArray<AActor*> Targets;
+                Targets.Add(PlayerActor);
+                UAllyAbilityComponent* AllyAbilityComp = PlayerActor->FindComponentByClass<UAllyAbilityComponent>();
+                if (IsValid(AllyAbilityComp))
+                {
+                    float EffectResult = AllyAbilityComp->ExecuteSkill(CurrentSelectedAbility, Targets);
+                    UE_LOG(LogTemp, Log, TEXT("Self-target ability executed with result: %f"), EffectResult);
+                }
+                bIsSelectingAbilityTarget = false;
+                CurrentSelectedAbility = nullptr;
+                AbilityTarget = nullptr;
+                if (IsValid(CurrentEnemyIndicatorWidget))
+                {
+                    CurrentEnemyIndicatorWidget->RemoveFromParent();
+                    CurrentEnemyIndicatorWidget = nullptr;
+                }
+                if (IsValid(PlayerTurnMenuWidget))
+                {
+                    PlayerTurnMenuWidget->SetRenderOpacity(1.0f);
+                }
+                NextTurn();
+            }
         }
-        AActor* HitActor = Hit.GetActor();
-        bool bValidTarget = false;
-        // Validate target based on the ability's TargetType.
-        if (CurrentSelectedAbility)
+        else
         {
+            // For Enemy or Ally targets.
+            FHitResult Hit;
+            if (!PC->GetHitResultUnderCursorByChannel(ETraceTypeQuery::TraceTypeQuery1, true, Hit))
+            {
+                return;
+            }
+            AActor* HitActor = Hit.GetActor();
+            bool bValidTarget = false;
             if (CurrentSelectedAbility->TargetType == ETargetType::Enemy)
             {
                 bValidTarget = (IsValid(HitActor) && HitActor->ActorHasTag("Enemy"));
@@ -250,56 +285,64 @@ void UTurnBasedCombatComponent::TickComponent(float DeltaTime, ELevelTick TickTy
             {
                 bValidTarget = (IsValid(HitActor) && (HitActor->ActorHasTag("Player") || HitActor->ActorHasTag("Ally")));
             }
-        }
-        if (bValidTarget)
-        {
-            // Reuse the same feedback system: update the enemy indicator.
-            if (AbilityTarget != HitActor)
+            if (bValidTarget)
             {
-                AbilityTarget = HitActor;
-                // Reuse existing function to update feedback (this displays the enemy indicator widget, name, etc.)
-                SetSelectedEnemy(HitActor);
-                UE_LOG(LogTemp, Log, TEXT("TickComponent (Ability mode) - Target locked: %s"), *HitActor->GetName());
-            }
-            // Confirm target selection on left mouse click.
-            if (PC->WasInputKeyJustPressed(EKeys::LeftMouseButton))
-            {
-                AActor* PlayerActor = UGameplayStatics::GetPlayerCharacter(World, 0);
-                if (!IsValid(PlayerActor))
+                // For modes Single, Multiple, or Random, auto-select a default target if not in "All" mode.
+                if (CurrentSelectedAbility->TargetMode != ETargetMode::All)
                 {
-                    UE_LOG(LogTemp, Warning, TEXT("Ability selection: Player actor not found"));
-                    return;
+                    if (AbilityTarget != HitActor)
+                    {
+                        AbilityTarget = HitActor;
+                        SetEntityIndicator(HitActor);
+                        UE_LOG(LogTemp, Log, TEXT("TickComponent (Ability mode) - Target locked: %s"), *HitActor->GetName());
+                    }
                 }
-                UAllyAbilityComponent* AllyAbilityComp = PlayerActor->FindComponentByClass<UAllyAbilityComponent>();
-                if (!IsValid(AllyAbilityComp))
+                // On confirmation (left click).
+                if (PC->WasInputKeyJustPressed(EKeys::LeftMouseButton))
                 {
-                    UE_LOG(LogTemp, Warning, TEXT("Ability selection: AllyAbilityComponent not found"));
-                    return;
-                }
-                TArray<AActor*> Targets;
-                Targets.Add(AbilityTarget);
-                float EffectResult = AllyAbilityComp->ExecuteSkill(CurrentSelectedAbility, Targets);
-                UE_LOG(LogTemp, Log, TEXT("Ability executed on target %s with result: %f"), *AbilityTarget->GetName(), EffectResult);
+                    TArray<AActor*> Targets;
+                    if (CurrentSelectedAbility->TargetMode == ETargetMode::All)
+                    {
+                        Targets = DefaultAbilityTargets;
+                    }
+                    else
+                    {
+                        Targets.Add(AbilityTarget);
+                    }
+                    AActor* PlayerActor = UGameplayStatics::GetPlayerCharacter(World, 0);
+                    if (!IsValid(PlayerActor))
+                    {
+                        UE_LOG(LogTemp, Warning, TEXT("Ability selection: Player actor not found"));
+                        return;
+                    }
+                    UAllyAbilityComponent* AllyAbilityComp = PlayerActor->FindComponentByClass<UAllyAbilityComponent>();
+                    if (!IsValid(AllyAbilityComp))
+                    {
+                        UE_LOG(LogTemp, Warning, TEXT("Ability selection: AllyAbilityComponent not found"));
+                        return;
+                    }
+                    float EffectResult = AllyAbilityComp->ExecuteSkill(CurrentSelectedAbility, Targets);
+                    UE_LOG(LogTemp, Log, TEXT("Ability executed on target(s) with result: %f"), EffectResult);
 
-                // Reset ability target selection mode.
-                bIsSelectingAbilityTarget = false;
-                CurrentSelectedAbility = nullptr;
-                AbilityTarget = nullptr;
-
-                // Restore main menu opacity.
-                if (IsValid(PlayerTurnMenuWidget))
-                {
-                    PlayerTurnMenuWidget->SetRenderOpacity(1.0f);
+                    // Reset ability selection.
+                    bIsSelectingAbilityTarget = false;
+                    CurrentSelectedAbility = nullptr;
+                    AbilityTarget = nullptr;
+                    DefaultAbilityTargets.Empty();
+                    if (IsValid(CurrentEnemyIndicatorWidget))
+                    {
+                        CurrentEnemyIndicatorWidget->RemoveFromParent();
+                        CurrentEnemyIndicatorWidget = nullptr;
+                    }
+                    if (IsValid(PlayerTurnMenuWidget))
+                    {
+                        PlayerTurnMenuWidget->SetRenderOpacity(1.0f);
+                    }
+                    NextTurn();
                 }
-                // Hide the abilities menu.
-                if (IsValid(PlayerAbilitiesMenuWidget))
-                {
-                    PlayerAbilitiesMenuWidget->SetVisibility(ESlateVisibility::Hidden);
-                }
-                NextTurn();
             }
         }
-        return;
+        return; // End of ability target selection mode.
     }
 
     // --- Basic Target Selection Mode (for attacks) ---
@@ -307,7 +350,6 @@ void UTurnBasedCombatComponent::TickComponent(float DeltaTime, ELevelTick TickTy
     {
         return;
     }
-
     UWorld* World = GetWorld();
     if (!IsValid(World))
     {
@@ -328,14 +370,14 @@ void UTurnBasedCombatComponent::TickComponent(float DeltaTime, ELevelTick TickTy
     {
         return;
     }
-    if (SelectedEnemy != HitActor)
+    if (EntityIndicatorTarget != HitActor)
     {
-        if (IsValid(SelectedEnemy))
+        if (IsValid(EntityIndicatorTarget))
         {
-            RemoveFeedbackFromEnemy(SelectedEnemy);
-            UE_LOG(LogTemp, Log, TEXT("TickComponent - Removed feedback from previous enemy: %s"), *SelectedEnemy->GetName());
+            RemoveFeedbackFromEntity(EntityIndicatorTarget);
+            UE_LOG(LogTemp, Log, TEXT("TickComponent - Removed feedback from previous target: %s"), *EntityIndicatorTarget->GetName());
         }
-        SetSelectedEnemy(HitActor);
+        SetEntityIndicator(HitActor);
         bTargetLocked = true;
         UE_LOG(LogTemp, Log, TEXT("TickComponent - Target locked on enemy: %s"), *HitActor->GetName());
     }
@@ -349,45 +391,42 @@ void UTurnBasedCombatComponent::TickComponent(float DeltaTime, ELevelTick TickTy
 //////////////////////////////////////////////////////////////////////////
 // Target Selection and Feedback
 
-void UTurnBasedCombatComponent::SetSelectedEnemy(AActor* NewSelectedEnemy)
+void UTurnBasedCombatComponent::SetEntityIndicator(AActor* NewTarget)
 {
-    UE_LOG(LogTemp, Log, TEXT("SetSelectedEnemy - Called with enemy: %s"), IsValid(NewSelectedEnemy) ? *NewSelectedEnemy->GetName() : TEXT("None"));
+    UE_LOG(LogTemp, Log, TEXT("SetEntityIndicator - Called with target: %s"), IsValid(NewTarget) ? *NewTarget->GetName() : TEXT("None"));
 
-    if (IsValid(SelectedEnemy) && SelectedEnemy != NewSelectedEnemy)
+    if (IsValid(EntityIndicatorTarget) && EntityIndicatorTarget != NewTarget)
     {
-        RemoveFeedbackFromEnemy(SelectedEnemy);
-        UE_LOG(LogTemp, Log, TEXT("SetSelectedEnemy - Removed feedback from previous enemy: %s"), *SelectedEnemy->GetName());
+        RemoveFeedbackFromEntity(EntityIndicatorTarget);
+        UE_LOG(LogTemp, Log, TEXT("SetEntityIndicator - Removed feedback from previous target: %s"), *EntityIndicatorTarget->GetName());
     }
 
-    SelectedEnemy = NewSelectedEnemy;
+    EntityIndicatorTarget = NewTarget;
 
-    if (!IsValid(EnemyIndicatorWidgetClass))
+    if (!IsValid(CurrentEnemyIndicatorWidget))
     {
-        UE_LOG(LogTemp, Warning, TEXT("SetSelectedEnemy - EnemyIndicatorWidgetClass is not set"));
-        return;
-    }
-
-    UWorld* World = GetWorld();
-    APlayerController* PC = UGameplayStatics::GetPlayerController(World, 0);
-    if (!IsValid(CurrentEnemyIndicatorWidget) && IsValid(PC))
-    {
-        CurrentEnemyIndicatorWidget = CreateWidget<UEnemyIndicatorWidget>(PC, EnemyIndicatorWidgetClass);
-        if (IsValid(CurrentEnemyIndicatorWidget))
+        UWorld* World = GetWorld();
+        APlayerController* PC = UGameplayStatics::GetPlayerController(World, 0);
+        if (IsValid(PC) && IsValid(EnemyIndicatorWidgetClass))
         {
-            CurrentEnemyIndicatorWidget->AddToViewport();
-            UE_LOG(LogTemp, Log, TEXT("SetSelectedEnemy - EnemyIndicatorWidget created and added to viewport"));
+            CurrentEnemyIndicatorWidget = CreateWidget<UEnemyIndicatorWidget>(PC, EnemyIndicatorWidgetClass);
+            if (IsValid(CurrentEnemyIndicatorWidget))
+            {
+                CurrentEnemyIndicatorWidget->AddToViewport();
+                UE_LOG(LogTemp, Log, TEXT("SetEntityIndicator - Indicator widget created and added to viewport"));
+            }
         }
     }
 
     UpdateEnemyIndicatorPosition();
-    ApplyFeedbackToEnemy(NewSelectedEnemy);
+    ApplyFeedbackToEntity(NewTarget);
 
-    if (IsValid(CurrentEnemyIndicatorWidget) && IsValid(NewSelectedEnemy))
+    if (IsValid(CurrentEnemyIndicatorWidget) && IsValid(NewTarget))
     {
-        if (UStatComponent* StatComp = NewSelectedEnemy->FindComponentByClass<UStatComponent>())
+        if (UStatComponent* StatComp = NewTarget->FindComponentByClass<UStatComponent>())
         {
             CurrentEnemyIndicatorWidget->SetEnemyName(StatComp->EntityName);
-            UE_LOG(LogTemp, Log, TEXT("SetSelectedEnemy - Updated enemy indicator name: %s"), *StatComp->EntityName.ToString());
+            UE_LOG(LogTemp, Log, TEXT("SetEntityIndicator - Updated indicator name: %s"), *StatComp->EntityName.ToString());
         }
     }
 }
@@ -395,7 +434,7 @@ void UTurnBasedCombatComponent::SetSelectedEnemy(AActor* NewSelectedEnemy)
 void UTurnBasedCombatComponent::UpdateEnemyIndicatorPosition()
 {
     UE_LOG(LogTemp, Log, TEXT("UpdateEnemyIndicatorPosition - Called"));
-    if (!IsValid(SelectedEnemy) || !IsValid(CurrentEnemyIndicatorWidget))
+    if (!IsValid(EntityIndicatorTarget) || !IsValid(CurrentEnemyIndicatorWidget))
     {
         return;
     }
@@ -407,7 +446,7 @@ void UTurnBasedCombatComponent::UpdateEnemyIndicatorPosition()
         return;
     }
 
-    FVector WorldLocation = SelectedEnemy->GetActorLocation() + FVector(0.f, 0.f, IndicatorWorldVerticalOffset);
+    FVector WorldLocation = EntityIndicatorTarget->GetActorLocation() + FVector(0.f, 0.f, IndicatorWorldVerticalOffset);
     FVector2D ScreenPosition;
     if (!PC->ProjectWorldLocationToScreen(WorldLocation, ScreenPosition))
     {
@@ -424,12 +463,29 @@ void UTurnBasedCombatComponent::UpdateEnemyIndicatorPosition()
 void UTurnBasedCombatComponent::OnPlayerAttack()
 {
     UE_LOG(LogTemp, Log, TEXT("OnPlayerAttack - Called"));
+    AActor* PlayerActor = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
+    if (!IsValid(PlayerActor))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("OnPlayerAttack - Player actor not found"));
+        return;
+    }
 
+    // If not already in target selection mode, auto-select a default enemy.
     if (!bIsSelectingTarget)
     {
         bIsSelectingTarget = true;
-        bTargetLocked = false;
-        UE_LOG(LogTemp, Log, TEXT("OnPlayerAttack - Target selection mode activated"));
+        // Auto-select the first enemy found (assuming non-player actors are enemies)
+        for (AActor* Actor : Combatants)
+        {
+            if (IsValid(Actor) && !Actor->ActorHasTag("Player"))
+            {
+                SetEntityIndicator(Actor);
+                bTargetLocked = true;
+                UE_LOG(LogTemp, Log, TEXT("OnPlayerAttack - Default target auto-selected: %s"), *Actor->GetName());
+                break;
+            }
+        }
+        // On attend la confirmation du clic (dans TickComponent ou dans un appel ultérieur)
         return;
     }
 
@@ -439,25 +495,18 @@ void UTurnBasedCombatComponent::OnPlayerAttack()
         return;
     }
 
-    UWorld* World = GetWorld();
-    AActor* PlayerActor = UGameplayStatics::GetPlayerCharacter(World, 0);
-    if (!IsValid(PlayerActor))
-    {
-        UE_LOG(LogTemp, Warning, TEXT("OnPlayerAttack - Player actor not found"));
-        return;
-    }
-
+    // Execute the default attack.
     if (UAllyAbilityComponent* AllyAbility = PlayerActor->FindComponentByClass<UAllyAbilityComponent>())
     {
         float DamageAmount = AllyAbility->ExecuteDefaultAttack();
         UE_LOG(LogTemp, Log, TEXT("OnPlayerAttack - Player attack damage: %f"), DamageAmount);
-        if (IsValid(SelectedEnemy))
+        if (IsValid(EntityIndicatorTarget))
         {
-            if (UStatComponent* EnemyStat = SelectedEnemy->FindComponentByClass<UStatComponent>())
+            if (UStatComponent* EnemyStat = EntityIndicatorTarget->FindComponentByClass<UStatComponent>())
             {
                 EnemyStat->ApplyDamage(DamageAmount, false);
                 UE_LOG(LogTemp, Log, TEXT("OnPlayerAttack - Applied damage to enemy %s. New HP: %f/%f"),
-                    *SelectedEnemy->GetName(), EnemyStat->Health, EnemyStat->MaxHealth);
+                    *EntityIndicatorTarget->GetName(), EnemyStat->Health, EnemyStat->MaxHealth);
             }
         }
     }
@@ -466,20 +515,20 @@ void UTurnBasedCombatComponent::OnPlayerAttack()
         UE_LOG(LogTemp, Warning, TEXT("OnPlayerAttack - Player has no AllyAbilityComponent"));
     }
 
-    if (IsValid(SelectedEnemy))
+    // Remove feedback and reset selection.
+    if (IsValid(EntityIndicatorTarget))
     {
-        RemoveFeedbackFromEnemy(SelectedEnemy);
-        UE_LOG(LogTemp, Log, TEXT("OnPlayerAttack - Removed enemy feedback for: %s"), *SelectedEnemy->GetName());
+        RemoveFeedbackFromEntity(EntityIndicatorTarget);
+        UE_LOG(LogTemp, Log, TEXT("OnPlayerAttack - Removed feedback from target: %s"), *EntityIndicatorTarget->GetName());
     }
     bIsSelectingTarget = false;
     bTargetLocked = false;
-    SelectedEnemy = nullptr;
-
+    EntityIndicatorTarget = nullptr;
     if (IsValid(CurrentEnemyIndicatorWidget))
     {
         CurrentEnemyIndicatorWidget->RemoveFromParent();
         CurrentEnemyIndicatorWidget = nullptr;
-        UE_LOG(LogTemp, Log, TEXT("OnPlayerAttack - Enemy indicator widget removed"));
+        UE_LOG(LogTemp, Log, TEXT("OnPlayerAttack - Indicator widget removed"));
     }
     NextTurn();
     UE_LOG(LogTemp, Log, TEXT("OnPlayerAttack - End"));
@@ -530,7 +579,7 @@ void UTurnBasedCombatComponent::OnAbilitySelected(USkillData* SelectedSkill)
     }
     UE_LOG(LogTemp, Log, TEXT("OnAbilitySelected called with skill: %s"), *SelectedSkill->SkillName.ToString());
 
-    // Get the player's character.
+    // Get player's character.
     AActor* PlayerActor = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
     if (!IsValid(PlayerActor))
     {
@@ -538,7 +587,7 @@ void UTurnBasedCombatComponent::OnAbilitySelected(USkillData* SelectedSkill)
         return;
     }
 
-    // Get the player's AllyAbilityComponent.
+    // Get player's ability component.
     UAllyAbilityComponent* AllyAbilityComp = PlayerActor->FindComponentByClass<UAllyAbilityComponent>();
     if (!IsValid(AllyAbilityComp))
     {
@@ -546,32 +595,59 @@ void UTurnBasedCombatComponent::OnAbilitySelected(USkillData* SelectedSkill)
         return;
     }
 
-    // For Self-targeted abilities, execute immediately.
-    if (SelectedSkill->TargetType == ETargetType::Self)
-    {
-        TArray<AActor*> Targets;
-        Targets.Add(PlayerActor);
-        float EffectResult = AllyAbilityComp->ExecuteSkill(SelectedSkill, Targets);
-        UE_LOG(LogTemp, Log, TEXT("Ability (Self) executed with result: %f"), EffectResult);
+    // Activate ability target selection mode.
+    CurrentSelectedAbility = SelectedSkill;
+    bIsSelectingAbilityTarget = true;
 
-        // Hide abilities menu and restore main menu opacity.
-        if (IsValid(PlayerAbilitiesMenuWidget))
+    // Pour une capacité Self, la cible par défaut est le joueur.
+    if (SelectedSkill->TargetType == ETargetType::Self || SelectedSkill->AbilityCategory == EAbilityCategory::Heal)
+    {
+        SetEntityIndicator(PlayerActor);
+        UE_LOG(LogTemp, Log, TEXT("OnAbilitySelected - Self-target ability selection mode activated"));
+    }
+    // Pour les capacités offensives ou de debuff.
+    else if (SelectedSkill->AbilityCategory == EAbilityCategory::Offensive ||
+        SelectedSkill->AbilityCategory == EAbilityCategory::Debuff)
+    {
+        // Si le TargetMode est All, sélectionnez tous les ennemis par défaut.
+        if (SelectedSkill->TargetMode == ETargetMode::All)
         {
-            PlayerAbilitiesMenuWidget->SetVisibility(ESlateVisibility::Hidden);
+            DefaultAbilityTargets.Empty();
+            TArray<AActor*> AllEnemies;
+            UGameplayStatics::GetAllActorsWithTag(GetWorld(), FName("Enemy"), AllEnemies);
+            for (AActor* Enemy : AllEnemies)
+            {
+                if (IsValid(Enemy))
+                {
+                    DefaultAbilityTargets.Add(Enemy);
+                    ApplyFeedbackToEntity(Enemy);
+                }
+            }
+            UE_LOG(LogTemp, Log, TEXT("OnAbilitySelected - Default selection set to ALL enemies (%d found)"), DefaultAbilityTargets.Num());
         }
-        if (IsValid(PlayerTurnMenuWidget))
+        else
         {
-            PlayerTurnMenuWidget->SetRenderOpacity(1.0f);
+            // Pour Single, Multiple ou Random, sélectionnez par défaut le premier ennemi trouvé.
+            TArray<AActor*> FoundEnemies;
+            UGameplayStatics::GetAllActorsWithTag(GetWorld(), FName("Enemy"), FoundEnemies);
+            if (FoundEnemies.Num() > 0)
+            {
+                AActor* DefaultEnemy = FoundEnemies[0];
+                SetEntityIndicator(DefaultEnemy);
+                AbilityTarget = DefaultEnemy;
+                UE_LOG(LogTemp, Log, TEXT("OnAbilitySelected - Default target set to enemy: %s"), *DefaultEnemy->GetName());
+            }
         }
-        NextTurn();
+    }
+    else if (SelectedSkill->TargetType == ETargetType::Ally)
+    {
+        // Pour les buffs sur alliés, on pourrait définir ici une cible par défaut (ex. le joueur)
+        SetEntityIndicator(PlayerActor);
+        UE_LOG(LogTemp, Log, TEXT("OnAbilitySelected - Ally-target ability selection mode activated (default set to self)"));
     }
     else
     {
-        // For abilities that require target selection (Enemy or Ally), enter target selection mode.
-        CurrentSelectedAbility = SelectedSkill;
-        bIsSelectingAbilityTarget = true;
-        UE_LOG(LogTemp, Log, TEXT("Ability target selection mode activated for skill: %s"), *SelectedSkill->SkillName.ToString());
-        // Optionally, afficher une instruction (via UI) pour que le joueur sélectionne la cible.
+        UE_LOG(LogTemp, Log, TEXT("OnAbilitySelected - No default selection for this skill type"));
     }
 }
 
@@ -666,6 +742,31 @@ void UTurnBasedCombatComponent::HideAbilitiesMenu()
     {
         PlayerTurnMenuWidget->SetRenderOpacity(1.0f);
     }
+    // Cancel any ability target selection.
+    bIsSelectingAbilityTarget = false;
+    CurrentSelectedAbility = nullptr;
+    AbilityTarget = nullptr;
+    // Remove the indicator widget if present.
+    if (IsValid(CurrentEnemyIndicatorWidget))
+    {
+        CurrentEnemyIndicatorWidget->RemoveFromParent();
+        CurrentEnemyIndicatorWidget = nullptr;
+    }
+    // Remove feedback from default ability targets.
+    for (AActor* Target : DefaultAbilityTargets)
+    {
+        if (IsValid(Target))
+        {
+            RemoveFeedbackFromEntity(Target);
+        }
+    }
+    DefaultAbilityTargets.Empty();
+    // Also remove feedback from any currently indicated entity.
+    if (IsValid(EntityIndicatorTarget))
+    {
+        RemoveFeedbackFromEntity(EntityIndicatorTarget);
+        EntityIndicatorTarget = nullptr;
+    }
 }
 
 void UTurnBasedCombatComponent::NextTurn()
@@ -676,11 +777,11 @@ void UTurnBasedCombatComponent::NextTurn()
     bIsSelectingTarget = false;
     bTargetLocked = false;
 
-    if (IsValid(SelectedEnemy))
+    if (IsValid(EntityIndicatorTarget))
     {
-        RemoveFeedbackFromEnemy(SelectedEnemy);
-        UE_LOG(LogTemp, Log, TEXT("NextTurn - Removed feedback from selected enemy: %s"), *SelectedEnemy->GetName());
-        SelectedEnemy = nullptr;
+        RemoveFeedbackFromEntity(EntityIndicatorTarget);
+        UE_LOG(LogTemp, Log, TEXT("NextTurn - Removed feedback from selected enemy: %s"), *EntityIndicatorTarget->GetName());
+        EntityIndicatorTarget = nullptr;
     }
 
     if (IsValid(CurrentEnemyIndicatorWidget))
@@ -1016,7 +1117,7 @@ void UTurnBasedCombatComponent::UpdateTurnOrderHUD()
             FCombatantTurnInfo Info;
             Info.Combatant = Actor;
             Info.Speed = StatComp->Speed;
-            Info.Icon = (Actor == SelectedEnemy && SelectedIconTexture) ? SelectedIconTexture : (Actor == PlayerActor ? PlayerIconTexture : EnemyIconTexture);
+            Info.Icon = (Actor == EntityIndicatorTarget && SelectedIconTexture) ? SelectedIconTexture : (Actor == PlayerActor ? PlayerIconTexture : EnemyIconTexture);
             FullTurnInfos.Add(Info);
         }
     }
@@ -1029,7 +1130,7 @@ void UTurnBasedCombatComponent::UpdateTurnOrderHUD()
         }
     }
 
-    TurnOrderWidget->UpdateTurnOrder(CurrentRoundInfos, FullTurnInfos, SelectedEnemy);
+    TurnOrderWidget->UpdateTurnOrder(CurrentRoundInfos, FullTurnInfos, EntityIndicatorTarget);
     UE_LOG(LogTemp, Log, TEXT("UpdateTurnOrderHUD - TurnOrderWidget updated"));
 }
 
@@ -1056,10 +1157,10 @@ void UTurnBasedCombatComponent::OnPlayerFlee()
 //////////////////////////////////////////////////////////////////////////
 // Feedback Helper Functions
 
-void UTurnBasedCombatComponent::ApplyFeedbackToEnemy(AActor* Enemy)
+void UTurnBasedCombatComponent::ApplyFeedbackToEntity(AActor* Enemy)
 {
-    UE_LOG(LogTemp, Log, TEXT("ApplyFeedbackToEnemy - Called for enemy: %s"), IsValid(Enemy) ? *Enemy->GetName() : TEXT("None"));
-    if (!IsValid(Enemy) || !IsValid(SelectedEnemyLightFunctionMaterial))
+    UE_LOG(LogTemp, Log, TEXT("ApplyFeedbackToEntity - Called for enemy: %s"), IsValid(Enemy) ? *Enemy->GetName() : TEXT("None"));
+    if (!IsValid(Enemy) || !IsValid(EntityIndicatorLightFunctionMaterial))
     {
         return;
     }
@@ -1071,7 +1172,7 @@ void UTurnBasedCombatComponent::ApplyFeedbackToEnemy(AActor* Enemy)
     }
     if (!IsValid(Mesh))
     {
-        UE_LOG(LogTemp, Warning, TEXT("ApplyFeedbackToEnemy - Mesh not found for enemy: %s"), *Enemy->GetName());
+        UE_LOG(LogTemp, Warning, TEXT("ApplyFeedbackToEntity - Mesh not found for enemy: %s"), *Enemy->GetName());
         return;
     }
 
@@ -1079,16 +1180,16 @@ void UTurnBasedCombatComponent::ApplyFeedbackToEnemy(AActor* Enemy)
     {
         UMaterialInterface* OrigMat = Mesh->GetMaterial(0);
         OriginalMaterials.Add(Enemy, OrigMat);
-        UE_LOG(LogTemp, Log, TEXT("ApplyFeedbackToEnemy - Original material stored for enemy: %s"), *Enemy->GetName());
+        UE_LOG(LogTemp, Log, TEXT("ApplyFeedbackToEntity - Original material stored for enemy: %s"), *Enemy->GetName());
     }
 
-    Mesh->SetMaterial(0, SelectedEnemyLightFunctionMaterial);
-    UE_LOG(LogTemp, Log, TEXT("ApplyFeedbackToEnemy - Applied selected enemy light function material to enemy: %s"), *Enemy->GetName());
+    Mesh->SetMaterial(0, EntityIndicatorLightFunctionMaterial);
+    UE_LOG(LogTemp, Log, TEXT("ApplyFeedbackToEntity - Applied selected enemy light function material to enemy: %s"), *Enemy->GetName());
 }
 
-void UTurnBasedCombatComponent::RemoveFeedbackFromEnemy(AActor* Enemy)
+void UTurnBasedCombatComponent::RemoveFeedbackFromEntity(AActor* Enemy)
 {
-    UE_LOG(LogTemp, Log, TEXT("RemoveFeedbackFromEnemy - Called for enemy: %s"), IsValid(Enemy) ? *Enemy->GetName() : TEXT("None"));
+    UE_LOG(LogTemp, Log, TEXT("RemoveFeedbackFromEntity - Called for enemy: %s"), IsValid(Enemy) ? *Enemy->GetName() : TEXT("None"));
     if (!IsValid(Enemy))
     {
         return;
@@ -1101,7 +1202,7 @@ void UTurnBasedCombatComponent::RemoveFeedbackFromEnemy(AActor* Enemy)
     }
     if (!IsValid(Mesh))
     {
-        UE_LOG(LogTemp, Warning, TEXT("RemoveFeedbackFromEnemy - Mesh not found for enemy: %s"), *Enemy->GetName());
+        UE_LOG(LogTemp, Warning, TEXT("RemoveFeedbackFromEntity - Mesh not found for enemy: %s"), *Enemy->GetName());
         return;
     }
 
@@ -1109,6 +1210,6 @@ void UTurnBasedCombatComponent::RemoveFeedbackFromEnemy(AActor* Enemy)
     {
         Mesh->SetMaterial(0, OriginalMaterials[Enemy]);
         OriginalMaterials.Remove(Enemy);
-        UE_LOG(LogTemp, Log, TEXT("RemoveFeedbackFromEnemy - Restored original material for enemy: %s"), *Enemy->GetName());
+        UE_LOG(LogTemp, Log, TEXT("RemoveFeedbackFromEntity - Restored original material for enemy: %s"), *Enemy->GetName());
     }
 }

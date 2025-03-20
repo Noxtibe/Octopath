@@ -16,6 +16,7 @@ enum class ETargetMode : uint8
 {
     Single      UMETA(DisplayName = "Single"),
     Multiple    UMETA(DisplayName = "Multiple"),
+    All         UMETA(DisplayName = "All"),
     Random      UMETA(DisplayName = "Random")
 };
 

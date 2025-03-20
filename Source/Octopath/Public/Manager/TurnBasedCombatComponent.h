@@ -81,7 +81,7 @@ public:
 	 * @param NewSelectedEnemy - The enemy actor to select.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Combat|Targeting")
-	void SetSelectedEnemy(AActor* NewSelectedEnemy);
+	void SetEntityIndicator(AActor* NewTarget);
 
 	/**
 	 * Updates the enemy indicator widget position on the screen.
@@ -112,17 +112,17 @@ public:
 
 	/** Material to apply as feedback on the selected enemy */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Feedback")
-	UMaterialInterface* SelectedEnemyLightFunctionMaterial;
+	UMaterialInterface* EntityIndicatorLightFunctionMaterial;
 
 	// -----------------------------------------------------------
 	// Private Helper Functions
 	// -----------------------------------------------------------
 private:
 	/** Applies visual feedback (e.g. a flashing material) to the specified enemy */
-	void ApplyFeedbackToEnemy(AActor* Enemy);
+	void ApplyFeedbackToEntity(AActor* Enemy);
 
 	/** Removes visual feedback from the specified enemy */
-	void RemoveFeedbackFromEnemy(AActor* Enemy);
+	void RemoveFeedbackFromEntity(AActor* Enemy);
 
 	// -----------------------------------------------------------
 	// Private Variables
@@ -188,9 +188,9 @@ private:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat", meta = (AllowPrivateAccess = "true"))
 	FName OriginalMapName;
 
-	/** Currently selected enemy for target selection */
+	/** Currently indicated entity (target for basic attacks or abilities) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Targeting", meta = (AllowPrivateAccess = "true"))
-	AActor* SelectedEnemy;
+	AActor* EntityIndicatorTarget;
 
 	/** Array containing the complete turn order for the next round */
 	TArray<FCombatantTurnInfo> FullTurnInfos;
@@ -253,4 +253,8 @@ private:
 	/** The actor currently selected as the target for the ability */
 	UPROPERTY()
 	AActor* AbilityTarget;
+
+	// Array of default targets when the ability targets "all" enemies (e.g. when TargetMode is Random / All)
+	UPROPERTY()
+	TArray<AActor*> DefaultAbilityTargets;
 };
