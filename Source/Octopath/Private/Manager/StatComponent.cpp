@@ -184,4 +184,7 @@ void UStatComponent::RecalculateStat(ECombatStatType CombatStatType)
     default:
         break;
     }
+
+    UE_LOG(LogTemp, Log, TEXT("RecalculateStat - BaseSpeed: %f, PercentageSum: %f, FlatSum: %f, NewValue: %f"), BaseValue, PercentageSum, FlatSum, NewValue);
+
 }

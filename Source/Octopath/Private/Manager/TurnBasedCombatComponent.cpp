@@ -771,16 +771,16 @@ void UTurnBasedCombatComponent::HideAbilitiesMenu()
 
 void UTurnBasedCombatComponent::NextTurn()
 {
-    UE_LOG(LogTemp, Log, TEXT("NextTurn - Called. CurrentTurnIndex: %d, Total Combatants: %d"),
-        CurrentTurnIndex, Combatants.Num());
+    UE_LOG(LogTemp, Log, TEXT("NextTurn - Called. CurrentTurnIndex: %d, Total Combatants: %d"), CurrentTurnIndex, Combatants.Num());
 
+    // Reset targeting variables.
     bIsSelectingTarget = false;
     bTargetLocked = false;
 
     if (IsValid(EntityIndicatorTarget))
     {
         RemoveFeedbackFromEntity(EntityIndicatorTarget);
-        UE_LOG(LogTemp, Log, TEXT("NextTurn - Removed feedback from selected enemy: %s"), *EntityIndicatorTarget->GetName());
+        UE_LOG(LogTemp, Log, TEXT("NextTurn - Removed feedback from selected target: %s"), *EntityIndicatorTarget->GetName());
         EntityIndicatorTarget = nullptr;
     }
 
@@ -794,6 +794,7 @@ void UTurnBasedCombatComponent::NextTurn()
     ++CurrentTurnIndex;
     UE_LOG(LogTemp, Log, TEXT("NextTurn - Incremented turn index to: %d"), CurrentTurnIndex);
 
+    // If all combatants have acted, end the round.
     if (CurrentTurnIndex >= Combatants.Num())
     {
         UE_LOG(LogTemp, Log, TEXT("NextTurn - All combatants have acted. Calling EndRound."));
@@ -801,6 +802,7 @@ void UTurnBasedCombatComponent::NextTurn()
         return;
     }
 
+    // Re-sort remaining combatants based on current Speed.
     {
         TArray<AActor*> RemainingCombatants;
         RemainingCombatants.Reserve(Combatants.Num() - CurrentTurnIndex);
@@ -811,7 +813,6 @@ void UTurnBasedCombatComponent::NextTurn()
                 RemainingCombatants.Add(Combatants[i]);
             }
         }
-
         RemainingCombatants.Sort([](const AActor& A, const AActor& B)
             {
                 float SpeedA = 0.f, SpeedB = 0.f;
@@ -825,7 +826,6 @@ void UTurnBasedCombatComponent::NextTurn()
                 }
                 return SpeedA > SpeedB;
             });
-
         for (int32 i = CurrentTurnIndex; i < Combatants.Num(); i++)
         {
             Combatants[i] = RemainingCombatants[i - CurrentTurnIndex];
@@ -903,6 +903,15 @@ void UTurnBasedCombatComponent::EndRound()
     {
         UE_LOG(LogTemp, Warning, TEXT("EndRound - World is invalid"));
         return;
+    }
+
+    // Decrement modifiers on all combatants so expired buffs/debuffs are removed.
+    for (AActor* Combatant : Combatants)
+    {
+        if (UStatComponent* StatComp = Combatant->FindComponentByClass<UStatComponent>())
+        {
+            StatComp->DecrementStatModifiers();
+        }
     }
 
     ACharacter* PlayerActor = UGameplayStatics::GetPlayerCharacter(World, 0);
