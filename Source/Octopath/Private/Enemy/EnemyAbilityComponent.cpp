@@ -23,7 +23,6 @@ float UEnemyAbilityComponent::ExecuteDefaultAttack()
 		return 0.f;
 	}
 	float DamageAmount = EnemyStat->PhysicalAttack;
-	UE_LOG(LogTemp, Log, TEXT("EnemyAbilityComponent::ExecuteDefaultAttack - DamageAmount calculated: %f"), DamageAmount);
 	return DamageAmount;
 }
 

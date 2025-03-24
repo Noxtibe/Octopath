@@ -126,6 +126,9 @@ private:
 
 	void UpdateIndicatorWidgetForTarget(AActor* Target, UEnemyIndicatorWidget* IndicatorWidget);
 
+	// Default attack formula : 0.8 * (BaseDamage - (TargetDefense * 0.5))
+	float CalculateDamage(float BaseDamage, float TargetDefense) const;
+
 	// -----------------------------------------------------------
 	// Private Variables
 	// -----------------------------------------------------------

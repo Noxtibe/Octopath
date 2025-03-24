@@ -48,7 +48,7 @@ void UTurnBasedCombatComponent::BeginPlay()
         return;
     }
 
-    // Cache Player Character
+    // Cache the Player Character.
     AActor* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(World, 0);
     if (IsValid(PlayerCharacter))
     {
@@ -73,7 +73,7 @@ void UTurnBasedCombatComponent::BeginPlay()
         UE_LOG(LogTemp, Log, TEXT("BeginPlay - Added enemy %s to Combatants"), *Enemy->GetName());
     }
 
-    // Cache Player Controller
+    // Cache the Player Controller.
     APlayerController* PC = UGameplayStatics::GetPlayerController(World, 0);
     if (TurnOrderWidgetClass && IsValid(PC))
     {
@@ -112,7 +112,7 @@ void UTurnBasedCombatComponent::StartCombat()
         return;
     }
 
-    // Cache Player Actor and Controller
+    // Cache Player Actor and Controller.
     AActor* PlayerActor = UGameplayStatics::GetPlayerCharacter(World, 0);
     APlayerController* PC = UGameplayStatics::GetPlayerController(World, 0);
     if (!IsValid(PlayerActor))
@@ -121,6 +121,7 @@ void UTurnBasedCombatComponent::StartCombat()
         return;
     }
 
+    // Build turn info for each combatant.
     TArray<FCombatantTurnInfo> TurnInfos;
     for (AActor* Actor : Combatants)
     {
@@ -233,7 +234,7 @@ void UTurnBasedCombatComponent::TickComponent(float DeltaTime, ELevelTick TickTy
             return;
         }
 
-        // Self-target or heal: target is the player.
+        // Self-target or Heal: target is always the player.
         if (CurrentSelectedAbility->TargetType == ETargetType::Self || CurrentSelectedAbility->AbilityCategory == EAbilityCategory::Heal)
         {
             AActor* PlayerActor = UGameplayStatics::GetPlayerCharacter(World, 0);
@@ -251,14 +252,19 @@ void UTurnBasedCombatComponent::TickComponent(float DeltaTime, ELevelTick TickTy
                     float EffectResult = AllyAbilityComp->ExecuteSkill(CurrentSelectedAbility, Targets);
                     UE_LOG(LogTemp, Log, TEXT("Self-target ability executed with result: %f"), EffectResult);
                 }
+                // Clear all ability selection feedback.
                 bIsSelectingAbilityTarget = false;
                 CurrentSelectedAbility = nullptr;
                 AbilityTarget = nullptr;
-                if (IsValid(CurrentEnemyIndicatorWidget))
+                DefaultAbilityTargets.Empty();
+                for (auto& Elem : MultiTargetIndicatorWidgets)
                 {
-                    CurrentEnemyIndicatorWidget->RemoveFromParent();
-                    CurrentEnemyIndicatorWidget = nullptr;
+                    if (IsValid(Elem.Value))
+                    {
+                        Elem.Value->RemoveFromParent();
+                    }
                 }
+                MultiTargetIndicatorWidgets.Empty();
                 if (IsValid(PlayerTurnMenuWidget))
                 {
                     PlayerTurnMenuWidget->SetRenderOpacity(1.0f);
@@ -286,8 +292,9 @@ void UTurnBasedCombatComponent::TickComponent(float DeltaTime, ELevelTick TickTy
             }
             if (bValidTarget)
             {
-                // For Single, Multiple, or Random, if not All, update the single target.
-                if (CurrentSelectedAbility->TargetMode != ETargetMode::All)
+                // For Single or Multiple (and for Random mode, we do not update the single target)
+                if (CurrentSelectedAbility->TargetMode != ETargetMode::All &&
+                    CurrentSelectedAbility->TargetMode != ETargetMode::Random)
                 {
                     if (AbilityTarget != HitActor)
                     {
@@ -296,20 +303,24 @@ void UTurnBasedCombatComponent::TickComponent(float DeltaTime, ELevelTick TickTy
                         UE_LOG(LogTemp, Log, TEXT("TickComponent (Ability mode) - Target locked: %s"), *HitActor->GetName());
                     }
                 }
-                // On confirmation (left click)
+                // On confirmation (left mouse click)
                 if (PC->WasInputKeyJustPressed(EKeys::LeftMouseButton))
                 {
                     TArray<AActor*> Targets;
                     if (CurrentSelectedAbility->TargetMode == ETargetMode::All)
                     {
-                        // Update positions for each multi-target widget.
-                        for (auto& Elem : MultiTargetIndicatorWidgets)
-                        {
-                            AActor* Target = Elem.Key;
-                            UEnemyIndicatorWidget* IndicatorWidget = Elem.Value;
-                            UpdateIndicatorWidgetForTarget(Target, IndicatorWidget);
-                        }
+                        // For All mode, keep feedback on all default targets.
                         Targets = DefaultAbilityTargets;
+                    }
+                    else if (CurrentSelectedAbility->TargetMode == ETargetMode::Random)
+                    {
+                        // For Random mode, choose one target randomly from the full list of default targets.
+                        if (DefaultAbilityTargets.Num() > 0)
+                        {
+                            int32 RandIndex = FMath::RandRange(0, DefaultAbilityTargets.Num() - 1);
+                            Targets.Add(DefaultAbilityTargets[RandIndex]);
+                            UE_LOG(LogTemp, Log, TEXT("TickComponent - Random target selected: %s"), *DefaultAbilityTargets[RandIndex]->GetName());
+                        }
                     }
                     else
                     {
@@ -328,13 +339,22 @@ void UTurnBasedCombatComponent::TickComponent(float DeltaTime, ELevelTick TickTy
                         return;
                     }
                     float EffectResult = AllyAbilityComp->ExecuteSkill(CurrentSelectedAbility, Targets);
-                    UE_LOG(LogTemp, Log, TEXT("Ability executed on target(s) with result: %f"), EffectResult);
+                    UE_LOG(LogTemp, Log, TEXT("TurnBasedCombat : Total Ability Damage on target(s) with result: %f"), EffectResult);
 
-                    // Reset ability selection.
+                    // Clear ability selection and remove all feedback.
                     bIsSelectingAbilityTarget = false;
                     CurrentSelectedAbility = nullptr;
                     AbilityTarget = nullptr;
+
+                    for (AActor* Target : DefaultAbilityTargets)
+                    {
+                        if (IsValid(Target))
+                        {
+                            RemoveFeedbackFromEntity(Target);
+                        }
+                    }
                     DefaultAbilityTargets.Empty();
+
                     for (auto& Elem : MultiTargetIndicatorWidgets)
                     {
                         if (IsValid(Elem.Value))
@@ -342,6 +362,7 @@ void UTurnBasedCombatComponent::TickComponent(float DeltaTime, ELevelTick TickTy
                             Elem.Value->RemoveFromParent();
                         }
                     }
+
                     MultiTargetIndicatorWidgets.Empty();
                     if (IsValid(PlayerTurnMenuWidget))
                     {
@@ -351,26 +372,26 @@ void UTurnBasedCombatComponent::TickComponent(float DeltaTime, ELevelTick TickTy
                 }
             }
         }
-        return; // End of ability target selection mode.
+        return; // End ability target selection mode.
     }
 
-    // --- Basic Target Selection Mode (for attacks) ---
+    // --- Basic Target Selection Mode (for default attacks) ---
     if (!bIsSelectingTarget)
     {
         return;
     }
-    UWorld* World = GetWorld();
-    if (!IsValid(World))
+    UWorld* WorldBasic = GetWorld();
+    if (!IsValid(WorldBasic))
     {
         return;
     }
-    APlayerController* PC = UGameplayStatics::GetPlayerController(World, 0);
-    if (!IsValid(PC))
+    APlayerController* PCBasic = UGameplayStatics::GetPlayerController(WorldBasic, 0);
+    if (!IsValid(PCBasic))
     {
         return;
     }
     FHitResult Hit;
-    if (!PC->GetHitResultUnderCursorByChannel(ETraceTypeQuery::TraceTypeQuery1, true, Hit))
+    if (!PCBasic->GetHitResultUnderCursorByChannel(ETraceTypeQuery::TraceTypeQuery1, true, Hit))
     {
         return;
     }
@@ -404,15 +425,15 @@ void UTurnBasedCombatComponent::SetEntityIndicator(AActor* NewTarget)
 {
     UE_LOG(LogTemp, Log, TEXT("SetEntityIndicator - Called with target: %s"), IsValid(NewTarget) ? *NewTarget->GetName() : TEXT("None"));
 
-    // Si une cible était déjà sélectionnée et différente, supprimer son feedback.
+    // If a different target is already selected, remove its feedback.
     if (IsValid(EntityIndicatorTarget) && EntityIndicatorTarget != NewTarget)
     {
         RemoveFeedbackFromEntity(EntityIndicatorTarget);
         UE_LOG(LogTemp, Log, TEXT("SetEntityIndicator - Removed feedback from previous target: %s"), *EntityIndicatorTarget->GetName());
     }
 
-    // Pour le mode single-target, vider les widgets multi-cibles.
-    if (!CurrentSelectedAbility || CurrentSelectedAbility->TargetMode != ETargetMode::All)
+    // In single-target mode, clear multi-target indicator widgets.
+    if (!CurrentSelectedAbility || (CurrentSelectedAbility->TargetMode != ETargetMode::All && CurrentSelectedAbility->TargetMode != ETargetMode::Random))
     {
         for (auto& Elem : MultiTargetIndicatorWidgets)
         {
@@ -426,7 +447,7 @@ void UTurnBasedCombatComponent::SetEntityIndicator(AActor* NewTarget)
 
     EntityIndicatorTarget = NewTarget;
 
-    // Si aucun widget n'est créé pour le mode single-target, le créer.
+    // If no widget exists for single-target mode, create one.
     if (!IsValid(CurrentEnemyIndicatorWidget))
     {
         UWorld* World = GetWorld();
@@ -478,15 +499,13 @@ void UTurnBasedCombatComponent::UpdateEnemyIndicatorPosition()
     }
 
     ScreenPosition += IndicatorScreenOffset;
-
     CurrentEnemyIndicatorWidget->SetAlignmentInViewport(FVector2D(0.5f, 1.0f));
     CurrentEnemyIndicatorWidget->SetPositionInViewport(ScreenPosition, false);
-    UE_LOG(LogTemp, Log, TEXT("UpdateEnemyIndicatorPosition - Updated enemy indicator at screen position: X=%f, Y=%f"), ScreenPosition.X, ScreenPosition.Y);
+    UE_LOG(LogTemp, Log, TEXT("UpdateEnemyIndicatorPosition - Updated indicator at screen position: X=%f, Y=%f"), ScreenPosition.X, ScreenPosition.Y);
 }
 
 void UTurnBasedCombatComponent::OnPlayerAttack()
 {
-    UE_LOG(LogTemp, Log, TEXT("OnPlayerAttack - Called"));
     AActor* PlayerActor = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
     if (!IsValid(PlayerActor))
     {
@@ -494,11 +513,10 @@ void UTurnBasedCombatComponent::OnPlayerAttack()
         return;
     }
 
-    // If not already in target selection mode, auto-select a default enemy.
+    // Check if target selection mode is active.
     if (!bIsSelectingTarget)
     {
         bIsSelectingTarget = true;
-        // Auto-select the first enemy found (assuming non-player actors are enemies)
         for (AActor* Actor : Combatants)
         {
             if (IsValid(Actor) && !Actor->ActorHasTag("Player"))
@@ -509,7 +527,6 @@ void UTurnBasedCombatComponent::OnPlayerAttack()
                 break;
             }
         }
-        // On attend la confirmation du clic (dans TickComponent ou dans un appel ultérieur)
         return;
     }
 
@@ -519,16 +536,21 @@ void UTurnBasedCombatComponent::OnPlayerAttack()
         return;
     }
 
-    // Execute the default attack.
     if (UAllyAbilityComponent* AllyAbility = PlayerActor->FindComponentByClass<UAllyAbilityComponent>())
     {
-        float DamageAmount = AllyAbility->ExecuteDefaultAttack();
-        UE_LOG(LogTemp, Log, TEXT("OnPlayerAttack - Player attack damage: %f"), DamageAmount);
+        // Retrieve the base attack damage (e.g., PhysicalAttack)
+        float BaseDamage = AllyAbility->ExecuteDefaultAttack();
+
         if (IsValid(EntityIndicatorTarget))
         {
             if (UStatComponent* EnemyStat = EntityIndicatorTarget->FindComponentByClass<UStatComponent>())
             {
-                EnemyStat->ApplyDamage(DamageAmount, false);
+                float EnemyDefense = EnemyStat->PhysicalDefense;
+                // Use the helper function to calculate damage.
+                float CalculatedDamage = CalculateDamage(BaseDamage, EnemyDefense);
+
+                UE_LOG(LogTemp, Log, TEXT("OnPlayerAttack - Calculated damage: %f"), CalculatedDamage);
+                EnemyStat->ApplyDamage(CalculatedDamage, false);
                 UE_LOG(LogTemp, Log, TEXT("OnPlayerAttack - Applied damage to enemy %s. New HP: %f/%f"),
                     *EntityIndicatorTarget->GetName(), EnemyStat->Health, EnemyStat->MaxHealth);
             }
@@ -539,12 +561,7 @@ void UTurnBasedCombatComponent::OnPlayerAttack()
         UE_LOG(LogTemp, Warning, TEXT("OnPlayerAttack - Player has no AllyAbilityComponent"));
     }
 
-    // Remove feedback and reset selection.
-    if (IsValid(EntityIndicatorTarget))
-    {
-        RemoveFeedbackFromEntity(EntityIndicatorTarget);
-        UE_LOG(LogTemp, Log, TEXT("OnPlayerAttack - Removed feedback from target: %s"), *EntityIndicatorTarget->GetName());
-    }
+    // Reset target selection.
     bIsSelectingTarget = false;
     bTargetLocked = false;
     EntityIndicatorTarget = nullptr;
@@ -552,17 +569,15 @@ void UTurnBasedCombatComponent::OnPlayerAttack()
     {
         CurrentEnemyIndicatorWidget->RemoveFromParent();
         CurrentEnemyIndicatorWidget = nullptr;
-        UE_LOG(LogTemp, Log, TEXT("OnPlayerAttack - Indicator widget removed"));
     }
     NextTurn();
-    UE_LOG(LogTemp, Log, TEXT("OnPlayerAttack - End"));
 }
 
 void UTurnBasedCombatComponent::ShowAbilitiesMenu()
 {
     UE_LOG(LogTemp, Log, TEXT("ShowAbilitiesMenu called"));
 
-    // Instead of completely hiding the main menu, adjust its opacity.
+    // Adjust the main action menu opacity.
     if (IsValid(PlayerTurnMenuWidget))
     {
         PlayerTurnMenuWidget->SetRenderOpacity(MainMenuOpacityWhenAbilitiesShown);
@@ -576,9 +591,8 @@ void UTurnBasedCombatComponent::ShowAbilitiesMenu()
             PlayerAbilitiesMenuWidget = CreateWidget<UPlayerAbilitiesMenuWidget>(PC, PlayerAbilitiesMenuWidgetClass);
             if (IsValid(PlayerAbilitiesMenuWidget))
             {
-                // Bind the ability selection event.
+                // Bind ability selection and back events.
                 PlayerAbilitiesMenuWidget->OnAbilitySelected.AddDynamic(this, &UTurnBasedCombatComponent::OnAbilitySelected);
-                // Bind the back button event.
                 PlayerAbilitiesMenuWidget->OnBackPressed.AddDynamic(this, &UTurnBasedCombatComponent::HideAbilitiesMenu);
 
                 PlayerAbilitiesMenuWidget->AddToViewport();
@@ -603,10 +617,9 @@ void UTurnBasedCombatComponent::OnAbilitySelected(USkillData* SelectedSkill)
     }
     UE_LOG(LogTemp, Log, TEXT("OnAbilitySelected called with skill: %s"), *SelectedSkill->SkillName.ToString());
 
-    // Nettoyage si on passe d'un mode multi-cible à un mode mono-cible.
-    if (SelectedSkill->TargetMode != ETargetMode::All)
+    // If switching from multi-target to single-target, remove previous multi-target feedback.
+    if (SelectedSkill->TargetMode != ETargetMode::All && SelectedSkill->TargetMode != ETargetMode::Random)
     {
-        // Supprimer le feedback et les widgets pour toutes les cibles précédentes en mode multi.
         for (AActor* Target : DefaultAbilityTargets)
         {
             if (IsValid(Target))
@@ -615,7 +628,6 @@ void UTurnBasedCombatComponent::OnAbilitySelected(USkillData* SelectedSkill)
             }
         }
         DefaultAbilityTargets.Empty();
-
         for (auto& Elem : MultiTargetIndicatorWidgets)
         {
             if (IsValid(Elem.Value))
@@ -626,7 +638,7 @@ void UTurnBasedCombatComponent::OnAbilitySelected(USkillData* SelectedSkill)
         MultiTargetIndicatorWidgets.Empty();
     }
 
-    // Get player's character.
+    // Cache the player's character.
     AActor* PlayerActor = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
     if (!IsValid(PlayerActor))
     {
@@ -634,7 +646,7 @@ void UTurnBasedCombatComponent::OnAbilitySelected(USkillData* SelectedSkill)
         return;
     }
 
-    // Get player's ability component.
+    // Get the ally ability component.
     UAllyAbilityComponent* AllyAbilityComp = PlayerActor->FindComponentByClass<UAllyAbilityComponent>();
     if (!IsValid(AllyAbilityComp))
     {
@@ -646,18 +658,18 @@ void UTurnBasedCombatComponent::OnAbilitySelected(USkillData* SelectedSkill)
     CurrentSelectedAbility = SelectedSkill;
     bIsSelectingAbilityTarget = true;
 
-    // Pour une capacité Self ou Heal, la cible par défaut est le joueur.
+    // For Self or Heal abilities, default target is the player.
     if (SelectedSkill->TargetType == ETargetType::Self || SelectedSkill->AbilityCategory == EAbilityCategory::Heal)
     {
         SetEntityIndicator(PlayerActor);
         UE_LOG(LogTemp, Log, TEXT("OnAbilitySelected - Self-target ability selection mode activated"));
     }
-    // Pour les compétences offensives ou de debuff.
+    // For offensive or debuff abilities.
     else if (SelectedSkill->AbilityCategory == EAbilityCategory::Offensive ||
         SelectedSkill->AbilityCategory == EAbilityCategory::Debuff)
     {
-        // Si le TargetMode est All, sélectionnez tous les ennemis par défaut.
-        if (SelectedSkill->TargetMode == ETargetMode::All)
+        // If TargetMode is All or Random, select all enemies by default.
+        if (SelectedSkill->TargetMode == ETargetMode::All || SelectedSkill->TargetMode == ETargetMode::Random)
         {
             DefaultAbilityTargets.Empty();
             TArray<AActor*> AllEnemies;
@@ -674,7 +686,7 @@ void UTurnBasedCombatComponent::OnAbilitySelected(USkillData* SelectedSkill)
         }
         else
         {
-            // Pour Single, Multiple ou Random, sélectionnez par défaut le premier ennemi trouvé.
+            // For Single or Multiple, auto-select the first enemy.
             TArray<AActor*> FoundEnemies;
             UGameplayStatics::GetAllActorsWithTag(GetWorld(), FName("Enemy"), FoundEnemies);
             if (FoundEnemies.Num() > 0)
@@ -688,7 +700,7 @@ void UTurnBasedCombatComponent::OnAbilitySelected(USkillData* SelectedSkill)
     }
     else if (SelectedSkill->TargetType == ETargetType::Ally)
     {
-        // Pour les buffs sur alliés, par défaut on peut choisir le joueur.
+        // For ally-targeted abilities, default to the player.
         SetEntityIndicator(PlayerActor);
         UE_LOG(LogTemp, Log, TEXT("OnAbilitySelected - Ally-target ability selection mode activated (default set to self)"));
     }
@@ -738,11 +750,10 @@ void UTurnBasedCombatComponent::OnPlayerDefense()
 
 void UTurnBasedCombatComponent::OnEnemyTurn()
 {
-    UE_LOG(LogTemp, Log, TEXT("OnEnemyTurn - Called"));
-
     UWorld* World = GetWorld();
     AActor* EnemyActor = Combatants.IsValidIndex(CurrentTurnIndex) ? Combatants[CurrentTurnIndex] : nullptr;
     AActor* PlayerActor = UGameplayStatics::GetPlayerCharacter(World, 0);
+
     if (!IsValid(EnemyActor) || !IsValid(PlayerActor))
     {
         UE_LOG(LogTemp, Warning, TEXT("OnEnemyTurn - Invalid enemy or player actor"));
@@ -753,8 +764,17 @@ void UTurnBasedCombatComponent::OnEnemyTurn()
     float DamageValue = 0.f;
     if (UEnemyAbilityComponent* AbilityComp = EnemyActor->FindComponentByClass<UEnemyAbilityComponent>())
     {
-        DamageValue = AbilityComp->ExecuteDefaultAttack();
-        UE_LOG(LogTemp, Log, TEXT("OnEnemyTurn - Enemy %s calculated attack damage: %f"), *EnemyActor->GetName(), DamageValue);
+        // Retrieve enemy's base attack damage.
+        float BaseDamage = AbilityComp->ExecuteDefaultAttack();
+
+        if (UStatComponent* PlayerStat = PlayerActor->FindComponentByClass<UStatComponent>())
+        {
+            float PlayerDefense = PlayerStat->PhysicalDefense;
+            // Calculate damage using the helper function.
+            DamageValue = CalculateDamage(BaseDamage, PlayerDefense);
+            UE_LOG(LogTemp, Log, TEXT("OnEnemyTurn - Enemy %s calculated attack damage: %f"),
+                *EnemyActor->GetName(), DamageValue);
+        }
     }
     else
     {
@@ -774,7 +794,6 @@ void UTurnBasedCombatComponent::OnEnemyTurn()
             UE_LOG(LogTemp, Warning, TEXT("OnEnemyTurn - Player StatComponent not found"));
         }
     }
-    UE_LOG(LogTemp, Log, TEXT("OnEnemyTurn - End"));
     NextTurn();
 }
 
@@ -789,6 +808,7 @@ void UTurnBasedCombatComponent::HideAbilitiesMenu()
     {
         PlayerTurnMenuWidget->SetRenderOpacity(1.0f);
     }
+    // Cancel ability selection.
     bIsSelectingAbilityTarget = false;
     CurrentSelectedAbility = nullptr;
     AbilityTarget = nullptr;
@@ -1254,7 +1274,8 @@ void UTurnBasedCombatComponent::ApplyFeedbackToEntity(AActor* Target)
     UE_LOG(LogTemp, Log, TEXT("ApplyFeedbackToEntity - Applied indicator material to target: %s"), *Target->GetName());
 
     // If in multi-target mode ("All"), manage individual widgets.
-    if (CurrentSelectedAbility && CurrentSelectedAbility->TargetMode == ETargetMode::All)
+    if (CurrentSelectedAbility && (CurrentSelectedAbility->TargetMode == ETargetMode::All || 
+        CurrentSelectedAbility->TargetMode == ETargetMode::Random))
     {
         if (!MultiTargetIndicatorWidgets.Contains(Target))
         {
@@ -1338,4 +1359,10 @@ void UTurnBasedCombatComponent::UpdateIndicatorWidgetForTarget(AActor* Target, U
     {
         IndicatorWidget->SetEnemyName(StatComp->EntityName);
     }
+}
+
+float UTurnBasedCombatComponent::CalculateDamage(float BaseDamage, float TargetDefense) const
+{
+    float Damage = 0.8f * (BaseDamage - (TargetDefense * 0.5f));
+    return FMath::Max(Damage, 1.f);  // At least 1 damage is done
 }

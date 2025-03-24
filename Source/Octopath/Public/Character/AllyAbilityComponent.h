@@ -42,7 +42,23 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Ally Abilities")
 	float ExecuteSkill(USkillData* Skill, const TArray<AActor*>& Targets);
 
+public :
+
 	/** Array of skills available to this allied character */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ally Abilities")
 	TArray<USkillData*> Skills;
+
+	// Damage formula settings
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Damage Settings")
+	float DamageDefenceRatio = 100.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Damage Settings")
+	float DamageDefenceDivisor = 2.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Damage Settings")
+	float RandomMultiplierMin = 0.98f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Damage Settings")
+	float RandomMultiplierMax = 1.02f;
+
 };

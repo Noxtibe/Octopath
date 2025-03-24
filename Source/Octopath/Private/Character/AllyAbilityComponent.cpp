@@ -1,131 +1,145 @@
 #include "Character/AllyAbilityComponent.h"
 #include "Manager/StatComponent.h"
 #include "Manager/SkillData.h"
+#include "Kismet/GameplayStatics.h"
 #include "Engine/Engine.h"
+
+DEFINE_LOG_CATEGORY_STATIC(LogAllyAbilityComponent, Log, All);
 
 UAllyAbilityComponent::UAllyAbilityComponent()
 {
-	PrimaryComponentTick.bCanEverTick = false;
+    PrimaryComponentTick.bCanEverTick = false;
 }
 
 float UAllyAbilityComponent::ExecuteDefaultAttack()
 {
-	AActor* Owner = GetOwner();
-	if (!Owner)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("ExecuteDefaultAttack: Owner is null"));
-		return 0.f;
-	}
-	if (UStatComponent* StatComp = Owner->FindComponentByClass<UStatComponent>())
-	{
-		return StatComp->PhysicalAttack;
-	}
-	return 0.f;
+    AActor* Owner = GetOwner();
+    if (!Owner)
+    {
+        UE_LOG(LogAllyAbilityComponent, Warning, TEXT("Owner is null"));
+        return 0.f;
+    }
+    if (UStatComponent* StatComp = Owner->FindComponentByClass<UStatComponent>())
+    {
+        return StatComp->PhysicalAttack;
+    }
+    return 0.f;
 }
 
 float UAllyAbilityComponent::ExecuteSkill(USkillData* Skill, const TArray<AActor*>& Targets)
 {
     if (!Skill)
     {
-        UE_LOG(LogTemp, Warning, TEXT("ExecuteSkill: Skill is null"));
+        UE_LOG(LogAllyAbilityComponent, Warning, TEXT("Skill is null"));
         return 0.f;
     }
 
     AActor* Owner = GetOwner();
     if (!Owner)
     {
-        UE_LOG(LogTemp, Warning, TEXT("ExecuteSkill: Owner is null"));
+        UE_LOG(LogAllyAbilityComponent, Warning, TEXT("Owner is null"));
         return 0.f;
     }
 
     UStatComponent* StatComp = Owner->FindComponentByClass<UStatComponent>();
     if (!StatComp)
     {
-        UE_LOG(LogTemp, Warning, TEXT("ExecuteSkill: StatComponent not found"));
+        UE_LOG(LogAllyAbilityComponent, Warning, TEXT("StatComponent not found"));
         return 0.f;
     }
 
-    // Check if the owner has enough Technique Points for this skill.
+    // Check if the caster has enough Technique Points to use the skill.
     if (StatComp->TechniquePoints < Skill->TechniqueCost)
     {
-        UE_LOG(LogTemp, Warning, TEXT("ExecuteSkill: Not enough Technique Points to use %s"), *Skill->SkillName.ToString());
+        UE_LOG(LogAllyAbilityComponent, Warning, TEXT("Not enough Technique Points to use %s"), *Skill->SkillName.ToString());
         return 0.f;
     }
 
     // Deduct the TechniquePoints cost.
     StatComp->UseTechniquePoints(Skill->TechniqueCost);
 
-    float Result = 0.f;
-    switch (Skill->AbilityCategory)
+    float TotalEffect = 0.f;
+
+    if (Skill->AbilityCategory == EAbilityCategory::Offensive)
     {
-    case EAbilityCategory::Offensive:
-    {
-        // For offensive skills, calculate damage and apply to all targets.
-        float BaseDamage = Skill->Damage;
-        if (Skill->AttackType == EAttackType::Physical)
-        {
-            BaseDamage += StatComp->PhysicalAttack;
-        }
-        else // Magical attack
-        {
-            BaseDamage += StatComp->MagicalAttack;
-        }
-        // Optionally, you pouvez itérer sur Targets pour appliquer les dégâts
+        // Offensive abilities: apply damage calculation to each target.
         for (AActor* Target : Targets)
         {
-            if (IsValid(Target))
+            if (!IsValid(Target))
             {
-                if (UStatComponent* TargetStat = Target->FindComponentByClass<UStatComponent>())
-                {
-                    TargetStat->ApplyDamage(BaseDamage, (Skill->AttackType == EAttackType::Magical));
-                }
+                continue;
             }
+            UStatComponent* TargetStat = Target->FindComponentByClass<UStatComponent>();
+            if (!TargetStat)
+            {
+                continue;
+            }
+
+            float AttackValue = 0.f;
+            float DefenceValue = 0.f;
+            if (Skill->AttackType == EAttackType::Physical)
+            {
+                // Attack value = base skill damage + caster's physical attack.
+                AttackValue = Skill->Damage + StatComp->PhysicalAttack;
+                // Defence value = target's physical defense.
+                DefenceValue = TargetStat->PhysicalDefense;
+            }
+            else // Magical attack
+            {
+                // Attack value = base skill damage + caster's magical attack.
+                AttackValue = Skill->Damage + StatComp->MagicalAttack;
+                // Defence value = target's magical defense.
+                DefenceValue = TargetStat->MagicalDefense;
+            }
+
+            // Generate a random multiplier using modifiable min and max values.
+            float RandomMultiplier = FMath::FRandRange(RandomMultiplierMin, RandomMultiplierMax);
+            // Calculate damage using the formula:
+            // Damage = (AttackValue - (DefenceValue * DamageDefenceRatio / DamageDefenceDivisor)) * RandomMultiplier.
+            float DamageDealt = (AttackValue - (DefenceValue * DamageDefenceRatio / DamageDefenceDivisor)) * RandomMultiplier;
+            DamageDealt = FMath::Max(DamageDealt, 1.f); // Ensure at least 1 damage is dealt.
+
+            UE_LOG(LogAllyAbilityComponent, Log, TEXT("Damage Calculation Formula: (%.2f - (%.2f * %.2f / %.2f)) * %.2f = %.2f"),
+                AttackValue, DefenceValue, DamageDefenceRatio, DamageDefenceDivisor, RandomMultiplier, DamageDealt);
+
+            // Apply damage to the target. The second parameter indicates if damage is magical.
+            TargetStat->ApplyDamage(DamageDealt, (Skill->AttackType == EAttackType::Magical));
+            UE_LOG(LogAllyAbilityComponent, Log, TEXT("Applied %f damage to target %s"), DamageDealt, *Target->GetName());
+            TotalEffect += DamageDealt;
         }
-        Result = BaseDamage;
-        break;
     }
-    case EAbilityCategory::Heal:
+    else if (Skill->AbilityCategory == EAbilityCategory::Heal)
     {
-        // For healing, the DataAsset's Damage value represents the maximum healing potential.
-        // We simply call Heal(HealAmount) on the target’s StatComponent.
-        // The StatComponent::Heal function clamps the health to not exceed MaxHealth.
-        float HealAmount = Skill->Damage;
+        // Heal abilities: treat the damage value as the amount to heal.
         for (AActor* Target : Targets)
         {
-            if (IsValid(Target))
+            if (!IsValid(Target))
             {
-                if (UStatComponent* TargetStat = Target->FindComponentByClass<UStatComponent>())
-                {
-                    TargetStat->Heal(HealAmount);
-                    UE_LOG(LogTemp, Log, TEXT("Heal applied to %s, amount: %f"), *Target->GetName(), HealAmount);
-                }
+                continue;
+            }
+            float HealAmount = Skill->Damage;
+            UStatComponent* TargetStat = Target->FindComponentByClass<UStatComponent>();
+            if (TargetStat)
+            {
+                TargetStat->Heal(HealAmount);
+                UE_LOG(LogAllyAbilityComponent, Log, TEXT("Healed target %s for %f"), *Target->GetName(), HealAmount);
+                // Convention: negative result represents healing.
+                TotalEffect -= HealAmount;
             }
         }
-        Result = -HealAmount; // Convention: negative value indicates healing effect.
-        break;
     }
-    case EAbilityCategory::Buff:
-    case EAbilityCategory::Debuff:
+    else if (Skill->AbilityCategory == EAbilityCategory::Buff ||
+        Skill->AbilityCategory == EAbilityCategory::Debuff)
+         {
+        // For buffs and debuffs, delegate to StatComponent.
+        StatComp->ApplyStatModifier(Skill->AffectedStat, Skill->ModifierValue, Skill->ModifierType, Skill->Duration);
+        UE_LOG(LogAllyAbilityComponent, Log, TEXT("Applied modifier %f to stat"), Skill->ModifierValue);
+        TotalEffect = Skill->ModifierValue;
+         }
+    else
     {
-        // For buff/debuff skills, apply the modifier to each target.
-        for (AActor* Target : Targets)
-        {
-            if (IsValid(Target))
-            {
-                if (UStatComponent* TargetStat = Target->FindComponentByClass<UStatComponent>())
-                {
-                    TargetStat->ApplyStatModifier(Skill->AffectedStat, Skill->ModifierValue, Skill->ModifierType, Skill->Duration);
-                }
-            }
-        }
-        Result = Skill->ModifierValue;
-        break;
+        UE_LOG(LogAllyAbilityComponent, Warning, TEXT("Ability category not implemented"));
     }
-    default:
-    {
-        UE_LOG(LogTemp, Warning, TEXT("ExecuteSkill: Ability category not implemented"));
-        break;
-    }
-    }
-    return Result;
+
+    return TotalEffect;
 }

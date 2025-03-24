@@ -48,24 +48,24 @@ void UStatComponent::BeginPlay()
 
 void UStatComponent::ApplyDamage(float DamageAmount, bool bIsMagical)
 {
-	float Defense = bIsMagical ? MagicalDefense : PhysicalDefense;
-	float EffectiveDamage = FMath::Max(DamageAmount - Defense, 1.f);
+    // Since damage is already calculated (including defense), simply use it.
+    float EffectiveDamage = DamageAmount;
 
-	// If defending, reduce the damage without resetting the defense bonus.
-	if (bIsDefending)
-	{
-		EffectiveDamage *= (1.f - DefenseReductionPercentage);
-		// Do NOT reset bIsDefending here so that the bonus remains active for the entire round.
-	}
+    // If the actor is defending, apply the defense reduction multiplier.
+    if (bIsDefending)
+    {
+        EffectiveDamage *= (1.f - DefenseReductionPercentage);
+    }
 
-	Health -= EffectiveDamage;
+    Health -= EffectiveDamage;
 
-	float HealthClampMax = bIsBoss ? MaxHealth : FMath::Min(MaxHealth, 10000.f);
-	Health = FMath::Clamp(Health, 0.f, HealthClampMax);
+    float HealthClampMax = bIsBoss ? MaxHealth : FMath::Min(MaxHealth, 10000.f);
+    Health = FMath::Clamp(Health, 0.f, HealthClampMax);
 
-	// Broadcast the event for Health change.
-	OnHealthChanged.Broadcast();
+    // Broadcast the health change event.
+    OnHealthChanged.Broadcast();
 }
+
 
 void UStatComponent::UseTechniquePoints(float Amount)
 {
