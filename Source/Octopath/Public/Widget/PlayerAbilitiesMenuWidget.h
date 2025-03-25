@@ -35,6 +35,12 @@ public:
 	UFUNCTION()
 	void HandleBackButtonClicked(UMyCommonButton* Button);
 
+	UFUNCTION()
+	void OnAbilityButtonHovered(UMyCommonButtonText* HoveredButton);
+
+	UFUNCTION()
+	void OnAbilityButtonUnhovered(UMyCommonButtonText* UnhoveredButton);
+
 public:
 
 	/** Delegate to broadcast when an ability is selected */
@@ -64,4 +70,29 @@ public:
 	/** Map to associate each created ability button with its corresponding skill */
 	UPROPERTY()
 	TMap<UMyCommonButtonText*, USkillData*> AbilityButtonMap;
+
+	// Class of the description widget (assignable in the editor)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Abilities")
+	TSubclassOf<class USkillDescriptionWidget> SkillDescriptionWidgetClass;
+
+	// Currently displayed description widget
+	UPROPERTY()
+	USkillDescriptionWidget* CurrentSkillDescriptionWidget;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Abilities|Description Positioning")
+	float DescriptionVerticalOffset = 10.f;
+
+	// Fixed position for the description widget in the viewport (modifiable dans l'éditeur)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Abilities|Description Positioning")
+	FVector2D DescriptionWidgetFixedPosition = FVector2D(300.f, 200.f);
+
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Abilities|Description Positioning")
+	FVector2D DescriptionOffset = FVector2D(0.f, 0.f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Abilities|Description Positioning")
+	FAnchors DescriptionAnchors = FAnchors(0.5f, 0.f, 0.5f, 0.f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Abilities|Description Positioning")
+	FVector2D DescriptionAlignment = FVector2D(0.5f, 1.f);
 };

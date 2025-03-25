@@ -128,18 +128,39 @@ float UAllyAbilityComponent::ExecuteSkill(USkillData* Skill, const TArray<AActor
             }
         }
     }
-    else if (Skill->AbilityCategory == EAbilityCategory::Buff ||
-        Skill->AbilityCategory == EAbilityCategory::Debuff)
-         {
-        // For buffs and debuffs, delegate to StatComponent.
-        StatComp->ApplyStatModifier(Skill->AffectedStat, Skill->ModifierValue, Skill->ModifierType, Skill->Duration);
-        UE_LOG(LogAllyAbilityComponent, Log, TEXT("Applied modifier %f to stat"), Skill->ModifierValue);
-        TotalEffect = Skill->ModifierValue;
-         }
+    else if (Skill->AbilityCategory == EAbilityCategory::Buff || Skill->AbilityCategory == EAbilityCategory::Debuff)
+    {
+        // If the target type is Self, apply the modifier to the caster's StatComponent.
+        if (Skill->TargetType == ETargetType::Self)
+        {
+            StatComp->ApplyStatModifier(Skill->AffectedStat, Skill->ModifierValue, Skill->ModifierType, Skill->Duration);
+            UE_LOG(LogAllyAbilityComponent, Log, TEXT("Applied modifier %f to caster's stat"), Skill->ModifierValue);
+            TotalEffect = Skill->ModifierValue;
+        }
+        else
+        {
+            // For skills targeting other entities (Enemy or Ally), iterate over each target.
+            for (AActor* Target : Targets)
+            {
+                if (!IsValid(Target))
+                {
+                    continue;
+                }
+                UStatComponent* TargetStat = Target->FindComponentByClass<UStatComponent>();
+                if (TargetStat)
+                {
+                    TargetStat->ApplyStatModifier(Skill->AffectedStat, Skill->ModifierValue, Skill->ModifierType, Skill->Duration);
+                    UE_LOG(LogAllyAbilityComponent, Log, TEXT("Applied modifier %f to target %s"),
+                        Skill->ModifierValue, *Target->GetName());
+                    // Optionally, accumulate the total effect value.
+                    TotalEffect += Skill->ModifierValue;
+                }
+            }
+        }
+    }
     else
     {
-        UE_LOG(LogAllyAbilityComponent, Warning, TEXT("Ability category not implemented"));
+        UE_LOG(LogTemp, Warning, TEXT("Ability category not implemented"));
     }
-
     return TotalEffect;
 }
