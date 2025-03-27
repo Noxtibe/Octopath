@@ -752,7 +752,7 @@ void UTurnBasedCombatComponent::ConfirmPlayerAttack()
         PlayerAttackTimeline->DestroyComponent();
         PlayerAttackTimeline = nullptr;
     }
-
+    // If no timeline / curves, attack immediatly
     PlayerAttackTimeline = NewObject<UTimelineComponent>(this, FName("PlayerAttackTimeline"));
     if (!PlayerAttackTimeline || !PlayerAttackCurve)
     {
