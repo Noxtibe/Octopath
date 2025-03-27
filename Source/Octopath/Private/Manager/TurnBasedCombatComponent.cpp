@@ -1,4 +1,4 @@
-#include "Manager/TurnBasedCombatComponent.h"
+﻿#include "Manager/TurnBasedCombatComponent.h"
 #include "Manager/StatComponent.h"
 #include "Enemy/EnemyAbilityComponent.h"
 #include "Character/AllyAbilityComponent.h"
@@ -242,47 +242,27 @@ void UTurnBasedCombatComponent::TickComponent(float DeltaTime, ELevelTick TickTy
             return;
         }
 
-        // Self-target or Heal: target is always the player.
+        // For self or heal abilities, the target is always the player.
         if (CurrentSelectedAbility->TargetType == ETargetType::Self || CurrentSelectedAbility->AbilityCategory == EAbilityCategory::Heal)
         {
             AActor* PlayerActor = UGameplayStatics::GetPlayerCharacter(World, 0);
             if (IsValid(PlayerActor))
             {
                 SetEntityIndicator(PlayerActor);
+                // Assign the player to AbilityTarget so that the timeline can retrieve the correct target.
+                AbilityTarget = PlayerActor;
             }
             if (PC->WasInputKeyJustPressed(EKeys::LeftMouseButton))
             {
-                TArray<AActor*> Targets;
-                Targets.Add(PlayerActor);
-                UAllyAbilityComponent* AllyAbilityComp = PlayerActor->FindComponentByClass<UAllyAbilityComponent>();
-                if (IsValid(AllyAbilityComp))
-                {
-                    float EffectResult = AllyAbilityComp->ExecuteSkill(CurrentSelectedAbility, Targets);
-                    UE_LOG(LogTemp, Log, TEXT("Self-target ability executed with result: %f"), EffectResult);
-                }
-                // Clear all ability selection feedback.
-                bIsSelectingAbilityTarget = false;
-                CurrentSelectedAbility = nullptr;
-                AbilityTarget = nullptr;
-                DefaultAbilityTargets.Empty();
-                for (auto& Elem : MultiTargetIndicatorWidgets)
-                {
-                    if (IsValid(Elem.Value))
-                    {
-                        Elem.Value->RemoveFromParent();
-                    }
-                }
-                MultiTargetIndicatorWidgets.Empty();
-                if (IsValid(PlayerTurnMenuWidget))
-                {
-                    PlayerTurnMenuWidget->SetRenderOpacity(1.0f);
-                }
-                NextTurn();
+                // Launch the casting timeline.
+                ConfirmAbilityCast();
+                // Do not reset variables here: the timeline will handle everything at the end.
+                return;
             }
         }
         else
         {
-            // For Enemy or Ally targets.
+            // For abilities targeting an enemy or an ally.
             FHitResult Hit;
             if (!PC->GetHitResultUnderCursorByChannel(ETraceTypeQuery::TraceTypeQuery1, true, Hit))
             {
@@ -300,7 +280,7 @@ void UTurnBasedCombatComponent::TickComponent(float DeltaTime, ELevelTick TickTy
             }
             if (bValidTarget)
             {
-                // For Single or Multiple (and for Random mode, we do not update the single target)
+                // For Single or Multiple modes (for All/Random, DefaultAbilityTargets is handled elsewhere)
                 if (CurrentSelectedAbility->TargetMode != ETargetMode::All &&
                     CurrentSelectedAbility->TargetMode != ETargetMode::Random)
                 {
@@ -311,76 +291,16 @@ void UTurnBasedCombatComponent::TickComponent(float DeltaTime, ELevelTick TickTy
                         UE_LOG(LogTemp, Log, TEXT("TickComponent (Ability mode) - Target locked: %s"), *HitActor->GetName());
                     }
                 }
-                // On confirmation (left mouse click)
+                // On click, launch the casting timeline to execute the ability.
                 if (PC->WasInputKeyJustPressed(EKeys::LeftMouseButton))
                 {
-                    TArray<AActor*> Targets;
-                    if (CurrentSelectedAbility->TargetMode == ETargetMode::All)
-                    {
-                        // For All mode, keep feedback on all default targets.
-                        Targets = DefaultAbilityTargets;
-                    }
-                    else if (CurrentSelectedAbility->TargetMode == ETargetMode::Random)
-                    {
-                        // For Random mode, choose one target randomly from the full list of default targets.
-                        if (DefaultAbilityTargets.Num() > 0)
-                        {
-                            int32 RandIndex = FMath::RandRange(0, DefaultAbilityTargets.Num() - 1);
-                            Targets.Add(DefaultAbilityTargets[RandIndex]);
-                            UE_LOG(LogTemp, Log, TEXT("TickComponent - Random target selected: %s"), *DefaultAbilityTargets[RandIndex]->GetName());
-                        }
-                    }
-                    else
-                    {
-                        Targets.Add(AbilityTarget);
-                    }
-                    AActor* PlayerActor = UGameplayStatics::GetPlayerCharacter(World, 0);
-                    if (!IsValid(PlayerActor))
-                    {
-                        UE_LOG(LogTemp, Warning, TEXT("Ability selection: Player actor not found"));
-                        return;
-                    }
-                    UAllyAbilityComponent* AllyAbilityComp = PlayerActor->FindComponentByClass<UAllyAbilityComponent>();
-                    if (!IsValid(AllyAbilityComp))
-                    {
-                        UE_LOG(LogTemp, Warning, TEXT("Ability selection: AllyAbilityComponent not found"));
-                        return;
-                    }
-                    float EffectResult = AllyAbilityComp->ExecuteSkill(CurrentSelectedAbility, Targets);
-                    UE_LOG(LogTemp, Log, TEXT("TurnBasedCombat : Total Ability Damage on target(s) with result: %f"), EffectResult);
-
-                    // Clear ability selection and remove all feedback.
-                    bIsSelectingAbilityTarget = false;
-                    CurrentSelectedAbility = nullptr;
-                    AbilityTarget = nullptr;
-
-                    for (AActor* Target : DefaultAbilityTargets)
-                    {
-                        if (IsValid(Target))
-                        {
-                            RemoveFeedbackFromEntity(Target);
-                        }
-                    }
-                    DefaultAbilityTargets.Empty();
-
-                    for (auto& Elem : MultiTargetIndicatorWidgets)
-                    {
-                        if (IsValid(Elem.Value))
-                        {
-                            Elem.Value->RemoveFromParent();
-                        }
-                    }
-
-                    MultiTargetIndicatorWidgets.Empty();
-                    if (IsValid(PlayerTurnMenuWidget))
-                    {
-                        PlayerTurnMenuWidget->SetRenderOpacity(1.0f);
-                    }
-                    NextTurn();
+                    ConfirmAbilityCast();
+                    // Let the timeline run; resetting will be handled in OnAbilityCastingTimelineFinished().
+                    return;
                 }
             }
         }
-        return; // End ability target selection mode.
+        return; // End of ability selection mode.
     }
 
     // --- Basic Target Selection Mode (for default attacks) ---
@@ -860,49 +780,49 @@ void UTurnBasedCombatComponent::ConfirmPlayerAttack()
 
 void UTurnBasedCombatComponent::ConfirmAbilityCast()
 {
-    // This function is called once the player has confirmed the target(s) for an ability.
-    // It creates and plays the ability casting timeline.
+    // Arrêter et détruire toute timeline d'ability existante.
     if (AbilityCastingTimeline)
     {
         AbilityCastingTimeline->Stop();
         AbilityCastingTimeline->DestroyComponent();
         AbilityCastingTimeline = nullptr;
     }
-    /*if (!CurrentSelectedAbility)
+
+    // Vérifier qu'une ability est sélectionnée.
+    if (!CurrentSelectedAbility)
     {
         UE_LOG(LogTemp, Warning, TEXT("ConfirmAbilityCast - No ability selected"));
         return;
-    }*/
-    /*if (!AbilityCastingCurve)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("ConfirmAbilityCast - AbilityCastingCurve not set"));
-        ExecuteAbility(CurrentSelectedAbility);
-        return;
-    }*/
+    }
 
+    // Créer la timeline pour le casting de l'ability.
     AbilityCastingTimeline = NewObject<UTimelineComponent>(this, FName("AbilityCastingTimeline"));
-    if (!AbilityCastingTimeline)
+    if (!AbilityCastingTimeline || !AbilityCastingCurve)
     {
         UE_LOG(LogTemp, Warning, TEXT("ConfirmAbilityCast - Failed to create AbilityCastingTimeline"));
-        ExecuteAbility(CurrentSelectedAbility);
+        OnAbilityCastingTimelineFinished();
         return;
     }
+
+    // Ajouter la timeline au propriétaire pour une gestion correcte.
     if (AActor* Owner = GetOwner())
     {
         Owner->AddInstanceComponent(AbilityCastingTimeline);
     }
     AbilityCastingTimeline->RegisterComponent();
 
-    FOnTimelineFloat AbilityProgress;
-    AbilityProgress.BindUFunction(this, FName("OnAbilityCastingTimelineUpdate"));
-    FOnTimelineEvent AbilityFinished;
-    AbilityFinished.BindUFunction(this, FName("OnAbilityCastingTimelineFinished"));
-
-    // Use the casting time from the selected skill.
-    AbilityCastingTimeline->SetTimelineLength(CurrentSelectedAbility->CastingTime);
+    // Configurer la timeline en utilisant le temps de casting défini dans l'ability.
+    float CastingTime = CurrentSelectedAbility->CastingTime;
+    AbilityCastingTimeline->SetTimelineLength(CastingTime);
     AbilityCastingTimeline->SetTimelineLengthMode(ETimelineLengthMode::TL_TimelineLength);
-    AbilityCastingTimeline->AddInterpFloat(AbilityCastingCurve, AbilityProgress);
-    AbilityCastingTimeline->SetTimelineFinishedFunc(AbilityFinished);
+
+    // Ici, nous n'utilisons pas de curve d'interpolation.
+    // On lie uniquement la fonction de fin de timeline.
+    FOnTimelineEvent FinishedFunction;
+    FinishedFunction.BindUFunction(this, FName("OnAbilityCastingTimelineFinished"));
+    AbilityCastingTimeline->SetTimelineFinishedFunc(FinishedFunction);
+
+    // Lancer la timeline.
     AbilityCastingTimeline->PlayFromStart();
 }
 
@@ -1361,7 +1281,7 @@ void UTurnBasedCombatComponent::ApplyFeedbackToEntity(AActor* Target)
     }
     else
     {
-        // For single-target mode, nous utilisons CurrentEnemyIndicatorWidget d�j� cr�� par SetEntityIndicator.
+        // For single-target mode, nous utilisons CurrentEnemyIndicatorWidget déjà créé par SetEntityIndicator.
         if (IsValid(CurrentEnemyIndicatorWidget))
         {
             UpdateEnemyIndicatorPosition();
@@ -1416,7 +1336,7 @@ void UTurnBasedCombatComponent::UpdateIndicatorWidgetForTarget(AActor* Target, U
     ScreenPosition += IndicatorScreenOffset;
     IndicatorWidget->SetAlignmentInViewport(FVector2D(0.5f, 1.0f));
     IndicatorWidget->SetPositionInViewport(ScreenPosition, false);
-    // Optionnel : mettre � jour le texte si Target a un StatComponent.
+    // Optionnel : mettre à jour le texte si Target a un StatComponent.
     if (UStatComponent* StatComp = Target->FindComponentByClass<UStatComponent>())
     {
         IndicatorWidget->SetEnemyName(StatComp->EntityName);
@@ -1466,10 +1386,63 @@ void UTurnBasedCombatComponent::OnAbilityCastingTimelineUpdate(float Value)
 void UTurnBasedCombatComponent::OnAbilityCastingTimelineFinished()
 {
     UE_LOG(LogTemp, Log, TEXT("Ability Casting Timeline Finished"));
-    // Execute the ability after the timeline finishes.
     if (CurrentSelectedAbility)
     {
-        ExecuteAbility(CurrentSelectedAbility);
+        // Construire le tableau des cibles selon le mode de ciblage.
+        TArray<AActor*> Targets;
+        if (CurrentSelectedAbility->TargetMode == ETargetMode::All)
+        {
+            Targets = DefaultAbilityTargets;
+        }
+        else if (CurrentSelectedAbility->TargetMode == ETargetMode::Random)
+        {
+            if (DefaultAbilityTargets.Num() > 0)
+            {
+                int32 RandIndex = FMath::RandRange(0, DefaultAbilityTargets.Num() - 1);
+                Targets.Add(DefaultAbilityTargets[RandIndex]);
+            }
+        }
+        else
+        {
+            Targets.Add(AbilityTarget);
+        }
+
+        // Récupérer le composant AllyAbilityComponent du joueur.
+        AActor* PlayerActor = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
+        if (!IsValid(PlayerActor))
+        {
+            UE_LOG(LogTemp, Warning, TEXT("OnAbilityCastingTimelineFinished: Player actor not found"));
+            return;
+        }
+        UAllyAbilityComponent* AllyAbilityComp = PlayerActor->FindComponentByClass<UAllyAbilityComponent>();
+        if (!IsValid(AllyAbilityComp))
+        {
+            UE_LOG(LogTemp, Warning, TEXT("OnAbilityCastingTimelineFinished: AllyAbilityComponent not found"));
+            return;
+        }
+
+        // Appeler ExecuteSkill pour appliquer la logique de l'ability.
+        float EffectResult = AllyAbilityComp->ExecuteSkill(CurrentSelectedAbility, Targets);
+        UE_LOG(LogTemp, Log, TEXT("OnAbilityCastingTimelineFinished: Ability executed with result: %f"), EffectResult);
+
+        // Réinitialiser la sélection et supprimer les feedbacks.
+        bIsSelectingAbilityTarget = false;
+        CurrentSelectedAbility = nullptr;
+        AbilityTarget = nullptr;
+        DefaultAbilityTargets.Empty();
+        for (auto& Elem : MultiTargetIndicatorWidgets)
+        {
+            if (IsValid(Elem.Value))
+            {
+                Elem.Value->RemoveFromParent();
+            }
+        }
+        MultiTargetIndicatorWidgets.Empty();
+        if (IsValid(PlayerTurnMenuWidget))
+        {
+            PlayerTurnMenuWidget->SetRenderOpacity(1.0f);
+        }
+        NextTurn();
     }
 }
 
@@ -1550,66 +1523,5 @@ void UTurnBasedCombatComponent::ExecuteEnemyDefaultAttack()
             UE_LOG(LogTemp, Warning, TEXT("ExecuteEnemyDefaultAttack - Player StatComponent not found"));
         }
     }
-    NextTurn();
-}
-
-void UTurnBasedCombatComponent::ExecuteAbility(USkillData* Ability)
-{
-    if (!Ability)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("ExecuteAbility: Ability is null"));
-        return;
-    }
-
-    AActor* PlayerActor = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
-    if (!IsValid(PlayerActor))
-    {
-        UE_LOG(LogTemp, Warning, TEXT("ExecuteAbility - Player actor not found"));
-        return;
-    }
-
-    UAllyAbilityComponent* AllyAbilityComp = PlayerActor->FindComponentByClass<UAllyAbilityComponent>();
-    if (!IsValid(AllyAbilityComp))
-    {
-        UE_LOG(LogTemp, Warning, TEXT("ExecuteAbility - AllyAbilityComponent not found"));
-        return;
-    }
-
-    /*TArray<AActor*> Targets;
-    // Determine targets based on your ability targeting mode.
-    if (Ability->TargetMode == ETargetMode::All)
-    {
-        Targets = DefaultAbilityTargets;
-    }
-    else if (Ability->TargetMode == ETargetMode::Random)
-    {
-        if (DefaultAbilityTargets.Num() > 0)
-        {
-            int32 RandIndex = FMath::RandRange(0, DefaultAbilityTargets.Num() - 1);
-            Targets.Add(DefaultAbilityTargets[RandIndex]);
-        }
-    }
-    else
-    {
-        Targets.Add(AbilityTarget);
-    }
-
-    float EffectResult = AllyAbilityComp->ExecuteSkill(Ability, Targets);
-    UE_LOG(LogTemp, Log, TEXT("ExecuteAbility - Ability executed with result: %f"), EffectResult);*/
-
-    // Clear ability selection and feedback.
-    bIsSelectingAbilityTarget = false;
-    CurrentSelectedAbility = nullptr;
-    AbilityTarget = nullptr;
-    DefaultAbilityTargets.Empty();
-    for (auto& Elem : MultiTargetIndicatorWidgets)
-    {
-        if (IsValid(Elem.Value))
-        {
-            Elem.Value->RemoveFromParent();
-        }
-    }
-    MultiTargetIndicatorWidgets.Empty();
-
     NextTurn();
 }

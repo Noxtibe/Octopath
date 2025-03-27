@@ -174,7 +174,6 @@ private:
 	// Execution functions (called when timelines finish).
 	void ExecutePlayerDefaultAttack();
 	void ExecuteEnemyDefaultAttack();
-	void ExecuteAbility(USkillData * Ability);
 
 	// -----------------------------------------------------------
 	// Private Variables
