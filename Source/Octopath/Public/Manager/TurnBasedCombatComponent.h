@@ -14,6 +14,8 @@ class UEnemyIndicatorWidget;
 class USkillData;
 class UUserWidget;
 class UCanvasPanel;
+class UCurveFloat;
+class UTimelineComponent;
 
 /**
  * UTurnBasedCombatComponent
@@ -98,6 +100,14 @@ public:
 	UFUNCTION()
 	void HideAbilitiesMenu();
 
+	/** Confirms the player's default attack target and launches the attack timeline */
+	UFUNCTION(BlueprintCallable, Category = "Combat")
+	void ConfirmPlayerAttack();
+
+	/** Confirms the selected ability target and launches the ability casting timeline */
+	UFUNCTION(BlueprintCallable, Category = "Combat")
+	void ConfirmAbilityCast();
+
 	// -----------------------------------------------------------
 	// Public Variables
 	// -----------------------------------------------------------
@@ -114,6 +124,17 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Feedback")
 	UMaterialInterface* EntityIndicatorLightFunctionMaterial;
 
+	// Editor-exposed curves for timeline-based delays.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Timelines")
+	UCurveFloat* PlayerAttackCurve;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Timelines")
+	UCurveFloat* EnemyAttackCurve;
+
+	// For abilities, always use a timeline for casting.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Timelines")
+	UCurveFloat* AbilityCastingCurve;
+
 	// -----------------------------------------------------------
 	// Private Helper Functions
 	// -----------------------------------------------------------
@@ -128,6 +149,32 @@ private:
 
 	// Default attack formula : 0.8 * (BaseDamage - (TargetDefense * 0.5))
 	float CalculateDamage(float BaseDamage, float TargetDefense) const;
+
+	// Timeline callback functions for player's default attack.
+	UFUNCTION()
+	void OnPlayerAttackTimelineUpdate(float Value);
+
+	UFUNCTION()
+	void OnPlayerAttackTimelineFinished();
+
+	// Timeline callback functions for enemy's default attack.
+	UFUNCTION()
+	void OnEnemyAttackTimelineUpdate(float Value);
+
+	UFUNCTION()
+	void OnEnemyAttackTimelineFinished();
+
+	// Timeline callback functions for ability casting.
+	UFUNCTION()
+	void OnAbilityCastingTimelineUpdate(float Value);
+
+	UFUNCTION()
+	void OnAbilityCastingTimelineFinished();
+
+	// Execution functions (called when timelines finish).
+	void ExecutePlayerDefaultAttack();
+	void ExecuteEnemyDefaultAttack();
+	void ExecuteAbility(USkillData * Ability);
 
 	// -----------------------------------------------------------
 	// Private Variables
@@ -266,4 +313,15 @@ private:
 	/** Map storing indicator widgets for each target in multi-target abilities */
 	UPROPERTY()
 	TMap<AActor*, UEnemyIndicatorWidget*> MultiTargetIndicatorWidgets;
+
+	UPROPERTY()
+	UTimelineComponent* PlayerAttackTimeline;
+
+	UPROPERTY()
+	UTimelineComponent* EnemyAttackTimeline;
+
+	UPROPERTY()
+	UTimelineComponent* AbilityCastingTimeline;
+
+	bool bTargetConfirmed = false;
 };

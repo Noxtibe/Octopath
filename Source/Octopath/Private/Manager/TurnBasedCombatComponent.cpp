@@ -16,6 +16,7 @@
 #include "Game/HikariPlayerController.h"
 
 #include "Engine/Engine.h"
+#include "Components/TimelineComponent.h"
 
 UTurnBasedCombatComponent::UTurnBasedCombatComponent()
 {
@@ -26,11 +27,18 @@ UTurnBasedCombatComponent::UTurnBasedCombatComponent()
     bIsSelectingTarget = false;
     bTargetLocked = false;
     bWasLeftMouseDown = false;
+
     PlayerIconTexture = nullptr;
     EnemyIconTexture = nullptr;
+
     bPlayerFled = false;
+
     bPlayerDefendedThisRound = false;
     bDefenseConsumed = false;
+
+    PlayerAttackTimeline = nullptr;
+    EnemyAttackTimeline = nullptr;
+    AbilityCastingTimeline = nullptr;
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -536,31 +544,6 @@ void UTurnBasedCombatComponent::OnPlayerAttack()
         return;
     }
 
-    if (UAllyAbilityComponent* AllyAbility = PlayerActor->FindComponentByClass<UAllyAbilityComponent>())
-    {
-        // Retrieve the base attack damage (e.g., PhysicalAttack)
-        float BaseDamage = AllyAbility->ExecuteDefaultAttack();
-
-        if (IsValid(EntityIndicatorTarget))
-        {
-            if (UStatComponent* EnemyStat = EntityIndicatorTarget->FindComponentByClass<UStatComponent>())
-            {
-                float EnemyDefense = EnemyStat->PhysicalDefense;
-                // Use the helper function to calculate damage.
-                float CalculatedDamage = CalculateDamage(BaseDamage, EnemyDefense);
-
-                UE_LOG(LogTemp, Log, TEXT("OnPlayerAttack - Calculated damage: %f"), CalculatedDamage);
-                EnemyStat->ApplyDamage(CalculatedDamage, false);
-                UE_LOG(LogTemp, Log, TEXT("OnPlayerAttack - Applied damage to enemy %s. New HP: %f/%f"),
-                    *EntityIndicatorTarget->GetName(), EnemyStat->Health, EnemyStat->MaxHealth);
-            }
-        }
-    }
-    else
-    {
-        UE_LOG(LogTemp, Warning, TEXT("OnPlayerAttack - Player has no AllyAbilityComponent"));
-    }
-
     // Reset target selection.
     bIsSelectingTarget = false;
     bTargetLocked = false;
@@ -570,7 +553,7 @@ void UTurnBasedCombatComponent::OnPlayerAttack()
         CurrentEnemyIndicatorWidget->RemoveFromParent();
         CurrentEnemyIndicatorWidget = nullptr;
     }
-    NextTurn();
+    ConfirmPlayerAttack();
 }
 
 void UTurnBasedCombatComponent::ShowAbilitiesMenu()
@@ -665,8 +648,7 @@ void UTurnBasedCombatComponent::OnAbilitySelected(USkillData* SelectedSkill)
         UE_LOG(LogTemp, Log, TEXT("OnAbilitySelected - Self-target ability selection mode activated"));
     }
     // For offensive or debuff abilities.
-    else if (SelectedSkill->AbilityCategory == EAbilityCategory::Offensive ||
-        SelectedSkill->AbilityCategory == EAbilityCategory::Debuff)
+    else if (SelectedSkill->AbilityCategory == EAbilityCategory::Offensive ||SelectedSkill->AbilityCategory == EAbilityCategory::Debuff)
     {
         // If TargetMode is All or Random, select all enemies by default.
         if (SelectedSkill->TargetMode == ETargetMode::All || SelectedSkill->TargetMode == ETargetMode::Random)
@@ -761,40 +743,36 @@ void UTurnBasedCombatComponent::OnEnemyTurn()
         return;
     }
 
-    float DamageValue = 0.f;
-    if (UEnemyAbilityComponent* AbilityComp = EnemyActor->FindComponentByClass<UEnemyAbilityComponent>())
+    if (EnemyAttackTimeline)
     {
-        // Retrieve enemy's base attack damage.
-        float BaseDamage = AbilityComp->ExecuteDefaultAttack();
-
-        if (UStatComponent* PlayerStat = PlayerActor->FindComponentByClass<UStatComponent>())
-        {
-            float PlayerDefense = PlayerStat->PhysicalDefense;
-            // Calculate damage using the helper function.
-            DamageValue = CalculateDamage(BaseDamage, PlayerDefense);
-            UE_LOG(LogTemp, Log, TEXT("OnEnemyTurn - Enemy %s calculated attack damage: %f"),
-                *EnemyActor->GetName(), DamageValue);
-        }
-    }
-    else
-    {
-        UE_LOG(LogTemp, Warning, TEXT("OnEnemyTurn - Enemy %s has no EnemyAbilityComponent"), *EnemyActor->GetName());
+        EnemyAttackTimeline->Stop();
+        EnemyAttackTimeline->DestroyComponent();
+        EnemyAttackTimeline = nullptr;
     }
 
-    if (IsValid(PlayerActor))
+    EnemyAttackTimeline = NewObject<UTimelineComponent>(this, FName("EnemyAttackTimeline"));
+    if (!EnemyAttackTimeline || !EnemyAttackCurve)
     {
-        if (UStatComponent* PlayerStat = PlayerActor->FindComponentByClass<UStatComponent>())
-        {
-            PlayerStat->ApplyDamage(DamageValue, false);
-            UE_LOG(LogTemp, Log, TEXT("OnEnemyTurn - Damage applied. Player HP after attack: %f/%f"),
-                PlayerStat->Health, PlayerStat->MaxHealth);
-        }
-        else
-        {
-            UE_LOG(LogTemp, Warning, TEXT("OnEnemyTurn - Player StatComponent not found"));
-        }
+        UE_LOG(LogTemp, Warning, TEXT("OnEnemyTurn - Failed to create timeline or EnemyAttackCurve not set"));
+        ExecuteEnemyDefaultAttack();
+        return;
     }
-    NextTurn();
+
+    if (AActor* Owner = GetOwner())
+    {
+        Owner->AddInstanceComponent(EnemyAttackTimeline);
+    }
+    EnemyAttackTimeline->RegisterComponent();
+
+    FOnTimelineFloat ProgressFunction;
+    ProgressFunction.BindUFunction(this, FName("OnEnemyAttackTimelineUpdate"));
+    FOnTimelineEvent FinishedFunction;
+    FinishedFunction.BindUFunction(this, FName("OnEnemyAttackTimelineFinished"));
+
+    EnemyAttackTimeline->SetTimelineLengthMode(ETimelineLengthMode::TL_LastKeyFrame);
+    EnemyAttackTimeline->AddInterpFloat(EnemyAttackCurve, ProgressFunction);
+    EnemyAttackTimeline->SetTimelineFinishedFunc(FinishedFunction);
+    EnemyAttackTimeline->PlayFromStart();
 }
 
 void UTurnBasedCombatComponent::HideAbilitiesMenu()
@@ -842,6 +820,90 @@ void UTurnBasedCombatComponent::HideAbilitiesMenu()
         }
     }
     DefaultAbilityTargets.Empty();
+}
+
+void UTurnBasedCombatComponent::ConfirmPlayerAttack()
+{
+    // This function is called once the player has confirmed the target for a default attack.
+    // It creates and plays the timeline for the player's default attack.
+    if (PlayerAttackTimeline)
+    {
+        PlayerAttackTimeline->Stop();
+        PlayerAttackTimeline->DestroyComponent();
+        PlayerAttackTimeline = nullptr;
+    }
+
+    PlayerAttackTimeline = NewObject<UTimelineComponent>(this, FName("PlayerAttackTimeline"));
+    if (!PlayerAttackTimeline || !PlayerAttackCurve)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("ConfirmPlayerAttack - Failed to create timeline or PlayerAttackCurve not set"));
+        ExecutePlayerDefaultAttack();
+        return;
+    }
+
+    if (AActor* Owner = GetOwner())
+    {
+        Owner->AddInstanceComponent(PlayerAttackTimeline);
+    }
+    PlayerAttackTimeline->RegisterComponent();
+
+    FOnTimelineFloat ProgressFunction;
+    ProgressFunction.BindUFunction(this, FName("OnPlayerAttackTimelineUpdate"));
+    FOnTimelineEvent FinishedFunction;
+    FinishedFunction.BindUFunction(this, FName("OnPlayerAttackTimelineFinished"));
+
+    PlayerAttackTimeline->SetTimelineLengthMode(ETimelineLengthMode::TL_LastKeyFrame);
+    PlayerAttackTimeline->AddInterpFloat(PlayerAttackCurve, ProgressFunction);
+    PlayerAttackTimeline->SetTimelineFinishedFunc(FinishedFunction);
+    PlayerAttackTimeline->PlayFromStart();
+}
+
+void UTurnBasedCombatComponent::ConfirmAbilityCast()
+{
+    // This function is called once the player has confirmed the target(s) for an ability.
+    // It creates and plays the ability casting timeline.
+    if (AbilityCastingTimeline)
+    {
+        AbilityCastingTimeline->Stop();
+        AbilityCastingTimeline->DestroyComponent();
+        AbilityCastingTimeline = nullptr;
+    }
+    /*if (!CurrentSelectedAbility)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("ConfirmAbilityCast - No ability selected"));
+        return;
+    }*/
+    /*if (!AbilityCastingCurve)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("ConfirmAbilityCast - AbilityCastingCurve not set"));
+        ExecuteAbility(CurrentSelectedAbility);
+        return;
+    }*/
+
+    AbilityCastingTimeline = NewObject<UTimelineComponent>(this, FName("AbilityCastingTimeline"));
+    if (!AbilityCastingTimeline)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("ConfirmAbilityCast - Failed to create AbilityCastingTimeline"));
+        ExecuteAbility(CurrentSelectedAbility);
+        return;
+    }
+    if (AActor* Owner = GetOwner())
+    {
+        Owner->AddInstanceComponent(AbilityCastingTimeline);
+    }
+    AbilityCastingTimeline->RegisterComponent();
+
+    FOnTimelineFloat AbilityProgress;
+    AbilityProgress.BindUFunction(this, FName("OnAbilityCastingTimelineUpdate"));
+    FOnTimelineEvent AbilityFinished;
+    AbilityFinished.BindUFunction(this, FName("OnAbilityCastingTimelineFinished"));
+
+    // Use the casting time from the selected skill.
+    AbilityCastingTimeline->SetTimelineLength(CurrentSelectedAbility->CastingTime);
+    AbilityCastingTimeline->SetTimelineLengthMode(ETimelineLengthMode::TL_TimelineLength);
+    AbilityCastingTimeline->AddInterpFloat(AbilityCastingCurve, AbilityProgress);
+    AbilityCastingTimeline->SetTimelineFinishedFunc(AbilityFinished);
+    AbilityCastingTimeline->PlayFromStart();
 }
 
 void UTurnBasedCombatComponent::NextTurn()
@@ -1365,4 +1427,189 @@ float UTurnBasedCombatComponent::CalculateDamage(float BaseDamage, float TargetD
 {
     float Damage = 0.8f * (BaseDamage - (TargetDefense * 0.5f));
     return FMath::Max(Damage, 1.f);  // At least 1 damage is done
+}
+
+void UTurnBasedCombatComponent::OnPlayerAttackTimelineUpdate(float Value)
+{
+    // This callback is called every frame during the player's default attack timeline.
+    // You can use 'Value' (ranging from 0 to 1) to drive FX or update a progress widget.
+    UE_LOG(LogTemp, Log, TEXT("Player Attack Timeline Progress: %f"), Value);
+    // (Optional) Insert FX update code here.
+}
+
+void UTurnBasedCombatComponent::OnPlayerAttackTimelineFinished()
+{
+    UE_LOG(LogTemp, Log, TEXT("Player Attack Timeline Finished"));
+    ExecutePlayerDefaultAttack();
+}
+
+void UTurnBasedCombatComponent::OnEnemyAttackTimelineUpdate(float Value)
+{
+    // This callback is called every frame during the enemy's attack timeline.
+    UE_LOG(LogTemp, Log, TEXT("Enemy Attack Timeline Progress: %f"), Value);
+    // (Optional) Update FX during enemy attack.
+}
+
+void UTurnBasedCombatComponent::OnEnemyAttackTimelineFinished()
+{
+    UE_LOG(LogTemp, Log, TEXT("Enemy Attack Timeline Finished"));
+    ExecuteEnemyDefaultAttack();
+}
+
+void UTurnBasedCombatComponent::OnAbilityCastingTimelineUpdate(float Value)
+{
+    // Called each frame during ability casting.
+    UE_LOG(LogTemp, Log, TEXT("Ability Casting Timeline Progress: %f"), Value);
+    // (Optional) Update casting FX or progress widget here.
+}
+
+void UTurnBasedCombatComponent::OnAbilityCastingTimelineFinished()
+{
+    UE_LOG(LogTemp, Log, TEXT("Ability Casting Timeline Finished"));
+    // Execute the ability after the timeline finishes.
+    if (CurrentSelectedAbility)
+    {
+        ExecuteAbility(CurrentSelectedAbility);
+    }
+}
+
+void UTurnBasedCombatComponent::ExecutePlayerDefaultAttack()
+{
+    // Execute the player's default attack by calling the AllyAbilityComponent.
+    AActor* PlayerActor = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
+    if (!IsValid(PlayerActor))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("ExecutePlayerDefaultAttack - Player actor not found"));
+        return;
+    }
+
+    UAllyAbilityComponent* AllyAbility = PlayerActor->FindComponentByClass<UAllyAbilityComponent>();
+    if (!IsValid(AllyAbility))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("ExecutePlayerDefaultAttack - AllyAbilityComponent not found"));
+        return;
+    }
+
+    float BaseDamage = AllyAbility->ExecuteDefaultAttack();
+    if (IsValid(EntityIndicatorTarget))
+    {
+        if (UStatComponent* EnemyStat = EntityIndicatorTarget->FindComponentByClass<UStatComponent>())
+        {
+            float EnemyDefense = EnemyStat->PhysicalDefense;
+            float CalculatedDamage = CalculateDamage(BaseDamage, EnemyDefense);
+            UE_LOG(LogTemp, Log, TEXT("ExecutePlayerDefaultAttack - Calculated damage: %f"), CalculatedDamage);
+            EnemyStat->ApplyDamage(CalculatedDamage, false);
+            // (Optional) Spawn attack FX and display a damage widget here.
+            UE_LOG(LogTemp, Log, TEXT("ExecutePlayerDefaultAttack - Applied damage to enemy %s. New HP: %f/%f"),
+                *EntityIndicatorTarget->GetName(), EnemyStat->Health, EnemyStat->MaxHealth);
+        }
+    }
+    NextTurn();
+}
+
+void UTurnBasedCombatComponent::ExecuteEnemyDefaultAttack()
+{
+    UWorld* World = GetWorld();
+    AActor* EnemyActor = Combatants.IsValidIndex(CurrentTurnIndex) ? Combatants[CurrentTurnIndex] : nullptr;
+    AActor* PlayerActor = UGameplayStatics::GetPlayerCharacter(World, 0);
+
+    if (!IsValid(EnemyActor) || !IsValid(PlayerActor))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("ExecuteEnemyDefaultAttack - Invalid enemy or player actor"));
+        NextTurn();
+        return;
+    }
+
+    float DamageValue = 0.f;
+    if (UEnemyAbilityComponent* AbilityComp = EnemyActor->FindComponentByClass<UEnemyAbilityComponent>())
+    {
+        float BaseDamage = AbilityComp->ExecuteDefaultAttack();
+        if (UStatComponent* PlayerStat = PlayerActor->FindComponentByClass<UStatComponent>())
+        {
+            float PlayerDefense = PlayerStat->PhysicalDefense;
+            DamageValue = CalculateDamage(BaseDamage, PlayerDefense);
+            UE_LOG(LogTemp, Log, TEXT("ExecuteEnemyDefaultAttack - Enemy %s calculated attack damage: %f"),
+                *EnemyActor->GetName(), DamageValue);
+        }
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("ExecuteEnemyDefaultAttack - Enemy %s has no EnemyAbilityComponent"), *EnemyActor->GetName());
+    }
+
+    if (IsValid(PlayerActor))
+    {
+        if (UStatComponent* PlayerStat = PlayerActor->FindComponentByClass<UStatComponent>())
+        {
+            PlayerStat->ApplyDamage(DamageValue, false);
+            UE_LOG(LogTemp, Log, TEXT("ExecuteEnemyDefaultAttack - Damage applied. Player HP: %f/%f"),
+                PlayerStat->Health, PlayerStat->MaxHealth);
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("ExecuteEnemyDefaultAttack - Player StatComponent not found"));
+        }
+    }
+    NextTurn();
+}
+
+void UTurnBasedCombatComponent::ExecuteAbility(USkillData* Ability)
+{
+    if (!Ability)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("ExecuteAbility: Ability is null"));
+        return;
+    }
+
+    AActor* PlayerActor = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
+    if (!IsValid(PlayerActor))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("ExecuteAbility - Player actor not found"));
+        return;
+    }
+
+    UAllyAbilityComponent* AllyAbilityComp = PlayerActor->FindComponentByClass<UAllyAbilityComponent>();
+    if (!IsValid(AllyAbilityComp))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("ExecuteAbility - AllyAbilityComponent not found"));
+        return;
+    }
+
+    /*TArray<AActor*> Targets;
+    // Determine targets based on your ability targeting mode.
+    if (Ability->TargetMode == ETargetMode::All)
+    {
+        Targets = DefaultAbilityTargets;
+    }
+    else if (Ability->TargetMode == ETargetMode::Random)
+    {
+        if (DefaultAbilityTargets.Num() > 0)
+        {
+            int32 RandIndex = FMath::RandRange(0, DefaultAbilityTargets.Num() - 1);
+            Targets.Add(DefaultAbilityTargets[RandIndex]);
+        }
+    }
+    else
+    {
+        Targets.Add(AbilityTarget);
+    }
+
+    float EffectResult = AllyAbilityComp->ExecuteSkill(Ability, Targets);
+    UE_LOG(LogTemp, Log, TEXT("ExecuteAbility - Ability executed with result: %f"), EffectResult);*/
+
+    // Clear ability selection and feedback.
+    bIsSelectingAbilityTarget = false;
+    CurrentSelectedAbility = nullptr;
+    AbilityTarget = nullptr;
+    DefaultAbilityTargets.Empty();
+    for (auto& Elem : MultiTargetIndicatorWidgets)
+    {
+        if (IsValid(Elem.Value))
+        {
+            Elem.Value->RemoveFromParent();
+        }
+    }
+    MultiTargetIndicatorWidgets.Empty();
+
+    NextTurn();
 }

@@ -104,6 +104,10 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skill")
     ETargetType TargetType;
 
+    // Casting time (in seconds) for the ability.
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skill")
+    float CastingTime = 1.0f;
+
     /** Category of the ability: Offensive, Defensive, Buff, Debuff, Heal, etc. */
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skill")
     EAbilityCategory AbilityCategory;

@@ -159,7 +159,7 @@ void UPlayerAbilitiesMenuWidget::OnAbilityButtonHovered(UMyCommonButtonText* Hov
 		return;
 	}
 
-	// Création du widget de description s'il n'existe pas encore.
+	// Create the description widget if it doesn't already exist.
 	if (!CurrentSkillDescriptionWidget && SkillDescriptionWidgetClass)
 	{
 		APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
@@ -169,7 +169,7 @@ void UPlayerAbilitiesMenuWidget::OnAbilityButtonHovered(UMyCommonButtonText* Hov
 		{
 			UE_LOG(LogPlayerAbilitiesMenu, Log, TEXT("OnAbilityButtonHovered: SkillDescriptionWidget created, adding to viewport"));
 			CurrentSkillDescriptionWidget->AddToViewport();
-			// Le widget ne doit pas intercepter les clics.
+			// Ensure the widget does not intercept clicks.
 			CurrentSkillDescriptionWidget->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
 		}
 		else
@@ -183,7 +183,7 @@ void UPlayerAbilitiesMenuWidget::OnAbilityButtonHovered(UMyCommonButtonText* Hov
 		UE_LOG(LogPlayerAbilitiesMenu, Log, TEXT("OnAbilityButtonHovered: Setting description text: %s"), *Skill->Description.ToString());
 		CurrentSkillDescriptionWidget->SetDescription(Skill->Description);
 
-		// Utiliser la position fixe définie dans l'éditeur.
+		// Use the fixed position defined in the editor.
 		UE_LOG(LogPlayerAbilitiesMenu, Log, TEXT("OnAbilityButtonHovered: Using fixed position: (%f, %f)"),
 			DescriptionWidgetFixedPosition.X, DescriptionWidgetFixedPosition.Y);
 		CurrentSkillDescriptionWidget->SetAnchorsInViewport(FAnchors(0.5f, 0.f, 0.5f, 0.f));
