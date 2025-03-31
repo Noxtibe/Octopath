@@ -9,6 +9,7 @@
 #include "Widget/PlayerStatsWidget.h"
 #include "Widget/PlayerAbilitiesMenuWidget.h"
 #include "Widget/EnemyIndicatorWidget.h"
+#include "Widget/DamageNumberWidget.h"
 
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/Character.h"
@@ -824,6 +825,77 @@ void UTurnBasedCombatComponent::ConfirmAbilityCast()
 
     // Lancer la timeline.
     AbilityCastingTimeline->PlayFromStart();
+}
+
+void UTurnBasedCombatComponent::SpawnDamageNumber(AActor* DamagedActor, int32 DamageAmount)
+{
+    if (!DamagedActor || !DamageNumberWidgetClass)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("SpawnDamageNumber: Invalid DamagedActor or DamageNumberWidgetClass not set."));
+        return;
+    }
+
+    APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
+    if (!PC)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("SpawnDamageNumber: PlayerController not found."));
+        return;
+    }
+
+    // Compute a world location above the damaged actor (adjust vertical offset as needed)
+    FVector WorldLocation = DamagedActor->GetActorLocation() + FVector(0.f, 0.f, 100.f);
+
+    // Convert world location to screen coordinates.
+    FVector2D ScreenPosition;
+    if (!PC->ProjectWorldLocationToScreen(WorldLocation, ScreenPosition))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("SpawnDamageNumber: Could not convert world location to screen coordinates."));
+        return;
+    }
+
+    // Adjust stacking: if there are already active widgets for this actor, offset vertically.
+    const float VerticalStackOffset = 30.f; // pixels to offset for each active widget
+    int32 NumActive = 0;
+    if (ActiveDamageWidgets.Contains(DamagedActor))
+    {
+        NumActive = ActiveDamageWidgets[DamagedActor].Num();
+    }
+    ScreenPosition.Y -= NumActive * VerticalStackOffset;
+
+    // Create the damage number widget.
+    UDamageNumberWidget* DamageWidget = CreateWidget<UDamageNumberWidget>(PC, DamageNumberWidgetClass);
+    if (DamageWidget)
+    {
+        DamageWidget->AddToViewport();
+        DamageWidget->SetDamageValue(DamageAmount);
+        DamageWidget->SetPositionInViewport(ScreenPosition, false);
+        DamageWidget->PlayDamageAnimation();
+
+        // Store the widget in the map.
+        ActiveDamageWidgets.FindOrAdd(DamagedActor).Add(DamageWidget);
+
+        // Set a timer to remove the widget after DamageWidgetLifetime seconds.
+        FTimerHandle TimerHandle;
+        FTimerDelegate TimerDelegate;
+        TimerDelegate.BindUFunction(this, FName("RemoveDamageWidget"), DamageWidget, DamagedActor);
+        GetWorld()->GetTimerManager().SetTimer(TimerHandle, TimerDelegate, DamageWidgetLifetime, false);
+    }
+}
+
+void UTurnBasedCombatComponent::RemoveDamageWidget(UDamageNumberWidget* DamageWidget, AActor* DamagedActor)
+{
+    if (DamageWidget)
+    {
+        DamageWidget->RemoveFromParent();
+    }
+    if (ActiveDamageWidgets.Contains(DamagedActor))
+    {
+        ActiveDamageWidgets[DamagedActor].Remove(DamageWidget);
+        if (ActiveDamageWidgets[DamagedActor].Num() <= 0)
+        {
+            ActiveDamageWidgets.Remove(DamagedActor);
+        }
+    }
 }
 
 void UTurnBasedCombatComponent::NextTurn()

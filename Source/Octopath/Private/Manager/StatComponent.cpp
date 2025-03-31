@@ -1,5 +1,7 @@
 #include "Manager/StatComponent.h"
 #include "Math/UnrealMathUtility.h"
+#include "EngineUtils.h"
+#include <Manager/TurnBasedCombatComponent.h>
 
 
 UStatComponent::UStatComponent()
@@ -64,8 +66,26 @@ void UStatComponent::ApplyDamage(float DamageAmount, bool bIsMagical)
 
     // Broadcast the health change event.
     OnHealthChanged.Broadcast();
-}
 
+    UWorld* World = GetWorld();
+    if (!World)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("ApplyDamage: World is null"));
+        return;
+    }
+
+    // Iterate over all actors in the world to find a TurnBasedCombatComponent.
+    for (TActorIterator<AActor> ActorItr(World); ActorItr; ++ActorItr)
+    {
+        UTurnBasedCombatComponent* CombatComponent = ActorItr->FindComponentByClass<UTurnBasedCombatComponent>();
+        if (CombatComponent)
+        {
+            // Use the owner of this StatComponent as the damaged actor.
+            CombatComponent->SpawnDamageNumber(GetOwner(), FMath::RoundToInt(EffectiveDamage));
+            break;
+        }
+    }
+}
 
 void UStatComponent::UseTechniquePoints(float Amount)
 {

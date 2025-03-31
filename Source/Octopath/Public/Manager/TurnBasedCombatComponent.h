@@ -11,6 +11,7 @@ class UPlayerTurnMenuWidget;
 class UPlayerStatsWidget;
 class UPlayerAbilitiesMenuWidget;
 class UEnemyIndicatorWidget;
+class UDamageNumberWidget;
 class USkillData;
 class UUserWidget;
 class UCanvasPanel;
@@ -108,6 +109,19 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Combat")
 	void ConfirmAbilityCast();
 
+	/**
+	* Spawns a damage number widget at the DamagedActor's location with the specified damage value.
+	*
+	* @param DamagedActor The actor that received damage.
+	* @param DamageAmount The amount of damage dealt.
+	*/
+	UFUNCTION(BlueprintCallable, Category = "Combat|UI")
+	void SpawnDamageNumber(AActor* DamagedActor, int32 DamageAmount);
+
+	// Function to remove a damage widget after its lifetime expires.
+	UFUNCTION()
+	void RemoveDamageWidget(UDamageNumberWidget* DamageWidget, AActor* DamagedActor);
+
 	// -----------------------------------------------------------
 	// Public Variables
 	// -----------------------------------------------------------
@@ -134,6 +148,10 @@ public:
 	// For abilities, always use a timeline for casting.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Timelines")
 	UCurveFloat* AbilityCastingCurve;
+
+	// Lifetime (in seconds) for damage widgets.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|UI")
+	float DamageWidgetLifetime = 1.5f;
 
 	// -----------------------------------------------------------
 	// Private Helper Functions
@@ -220,6 +238,12 @@ private:
 	// Instance du widget des compétences.
 	UPROPERTY(meta = (AllowPrivateAccess = "true"))
 	UPlayerAbilitiesMenuWidget* PlayerAbilitiesMenuWidget;
+
+	// Class of the damage number widget
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|UI", meta = (AllowPrivateAccess = "true"))
+	TSubclassOf<UDamageNumberWidget> DamageNumberWidgetClass;
+
+	TMap<AActor*, TArray<UDamageNumberWidget*>> ActiveDamageWidgets;
 
 	// Opacity of the main action menu when the abilities menu is shown (0 = invisible, 1 = fully visible)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|UI", meta = (AllowPrivateAccess = "true"))
