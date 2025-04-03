@@ -4,6 +4,8 @@
 #include "Engine/DataAsset.h"
 #include "SkillData.generated.h"
 
+class UNiagaraSystem;
+
 UENUM(BlueprintType)
 enum class EAttackType : uint8
 {
@@ -125,4 +127,7 @@ public:
     // Duration in number of turns
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skill|Modifier", meta = (ClampMin = "0"))
     int32 Duration;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skill|Effects")
+    UNiagaraSystem* AbilitiesNiagara;
 };

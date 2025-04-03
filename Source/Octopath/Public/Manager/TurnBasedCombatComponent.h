@@ -12,6 +12,7 @@ class UPlayerStatsWidget;
 class UPlayerAbilitiesMenuWidget;
 class UEnemyIndicatorWidget;
 class UDamageNumberWidget;
+class UNiagaraSystem;
 class USkillData;
 class UUserWidget;
 class UCanvasPanel;
@@ -122,6 +123,9 @@ public:
 	UFUNCTION()
 	void RemoveDamageWidget(UDamageNumberWidget* DamageWidget, AActor* DamagedActor);
 
+	UFUNCTION()
+	void SpawnAttackVFX(UNiagaraSystem* VFX, AActor* Target);
+
 	// -----------------------------------------------------------
 	// Public Variables
 	// -----------------------------------------------------------
@@ -152,6 +156,9 @@ public:
 	// Lifetime (in seconds) for damage widgets.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|UI")
 	float DamageWidgetLifetime = 1.5f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Effects")
+	UNiagaraSystem* DefaultAttackVFX;
 
 	// -----------------------------------------------------------
 	// Private Helper Functions

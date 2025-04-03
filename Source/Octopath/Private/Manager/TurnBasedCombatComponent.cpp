@@ -10,6 +10,7 @@
 #include "Widget/PlayerAbilitiesMenuWidget.h"
 #include "Widget/EnemyIndicatorWidget.h"
 #include "Widget/DamageNumberWidget.h"
+#include "Manager/SkillData.h"
 
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/Character.h"
@@ -18,6 +19,7 @@
 
 #include "Engine/Engine.h"
 #include "Components/TimelineComponent.h"
+#include "NiagaraFunctionLibrary.h"
 
 UTurnBasedCombatComponent::UTurnBasedCombatComponent()
 {
@@ -898,6 +900,28 @@ void UTurnBasedCombatComponent::RemoveDamageWidget(UDamageNumberWidget* DamageWi
     }
 }
 
+void UTurnBasedCombatComponent::SpawnAttackVFX(UNiagaraSystem* VFX, AActor* Target)
+{
+    if (!VFX || !Target)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("SpawnAttackVFX: VFX or Target is null"));
+        return;
+    }
+
+    UWorld* World = GetWorld();
+    if (!World)
+    {
+        return;
+    }
+
+    // Vous pouvez ajuster l’offset vertical si nécessaire.
+    FVector SpawnLocation = Target->GetActorLocation() + FVector(0.f, 0.f, 100.f);
+    FRotator SpawnRotation = FRotator::ZeroRotator;
+    FVector SpawnScale = FVector(1.f);
+
+    UNiagaraFunctionLibrary::SpawnSystemAtLocation(World, VFX, SpawnLocation, SpawnRotation, SpawnScale, true, true, ENCPoolMethod::None, true);
+}
+
 void UTurnBasedCombatComponent::NextTurn()
 {
     UE_LOG(LogTemp, Log, TEXT("NextTurn - Called. CurrentTurnIndex: %d, Total Combatants: %d"), CurrentTurnIndex, Combatants.Num());
@@ -1493,6 +1517,20 @@ void UTurnBasedCombatComponent::OnAbilityCastingTimelineFinished()
             return;
         }
 
+        if (CurrentSelectedAbility->AbilitiesNiagara)
+        {
+            for (AActor* Target : Targets)
+            {
+                if (!IsValid(Target))
+                {
+                    continue;
+                }
+                // Vous pouvez ajuster l'offset (ici 100.f) pour placer le VFX au-dessus de la cible.
+                FVector SpawnLocation = Target->GetActorLocation() + FVector(0.f, 0.f, 100.f);
+                UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), CurrentSelectedAbility->AbilitiesNiagara, SpawnLocation, FRotator::ZeroRotator, FVector(1.f), true, true, ENCPoolMethod::None, true);
+            }
+        }
+
         // Appeler ExecuteSkill pour appliquer la logique de l'ability.
         float EffectResult = AllyAbilityComp->ExecuteSkill(CurrentSelectedAbility, Targets);
         UE_LOG(LogTemp, Log, TEXT("OnAbilityCastingTimelineFinished: Ability executed with result: %f"), EffectResult);
@@ -1548,6 +1586,11 @@ void UTurnBasedCombatComponent::ExecutePlayerDefaultAttack()
             UE_LOG(LogTemp, Log, TEXT("ExecutePlayerDefaultAttack - Applied damage to enemy %s. New HP: %f/%f"),
                 *EntityIndicatorTarget->GetName(), EnemyStat->Health, EnemyStat->MaxHealth);
         }
+    }
+
+    if (DefaultAttackVFX && IsValid(EntityIndicatorTarget))
+    {
+        SpawnAttackVFX(DefaultAttackVFX, EntityIndicatorTarget);
     }
     NextTurn();
 }
