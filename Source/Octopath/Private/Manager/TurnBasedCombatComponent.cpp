@@ -470,7 +470,6 @@ void UTurnBasedCombatComponent::OnPlayerAttack()
     // Reset target selection.
     bIsSelectingTarget = false;
     bTargetLocked = false;
-    EntityIndicatorTarget = nullptr;
     if (IsValid(CurrentEnemyIndicatorWidget))
     {
         CurrentEnemyIndicatorWidget->RemoveFromParent();
@@ -913,9 +912,7 @@ void UTurnBasedCombatComponent::SpawnAttackVFX(UNiagaraSystem* VFX, AActor* Targ
     {
         return;
     }
-
-    // Vous pouvez ajuster l’offset vertical si nécessaire.
-    FVector SpawnLocation = Target->GetActorLocation() + FVector(0.f, 0.f, 100.f);
+    FVector SpawnLocation = Target->GetActorLocation() + FVector(0.f, 0.f, 0.f);
     FRotator SpawnRotation = FRotator::ZeroRotator;
     FVector SpawnScale = FVector(1.f);
 
@@ -1484,7 +1481,6 @@ void UTurnBasedCombatComponent::OnAbilityCastingTimelineFinished()
     UE_LOG(LogTemp, Log, TEXT("Ability Casting Timeline Finished"));
     if (CurrentSelectedAbility)
     {
-        // Construire le tableau des cibles selon le mode de ciblage.
         TArray<AActor*> Targets;
         if (CurrentSelectedAbility->TargetMode == ETargetMode::All)
         {
@@ -1503,7 +1499,6 @@ void UTurnBasedCombatComponent::OnAbilityCastingTimelineFinished()
             Targets.Add(AbilityTarget);
         }
 
-        // Récupérer le composant AllyAbilityComponent du joueur.
         AActor* PlayerActor = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
         if (!IsValid(PlayerActor))
         {
@@ -1525,17 +1520,14 @@ void UTurnBasedCombatComponent::OnAbilityCastingTimelineFinished()
                 {
                     continue;
                 }
-                // Vous pouvez ajuster l'offset (ici 100.f) pour placer le VFX au-dessus de la cible.
-                FVector SpawnLocation = Target->GetActorLocation() + FVector(0.f, 0.f, 100.f);
+                FVector SpawnLocation = Target->GetActorLocation() + FVector(0.f, 0.f, 0.f);
                 UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), CurrentSelectedAbility->AbilitiesNiagara, SpawnLocation, FRotator::ZeroRotator, FVector(1.f), true, true, ENCPoolMethod::None, true);
             }
         }
 
-        // Appeler ExecuteSkill pour appliquer la logique de l'ability.
         float EffectResult = AllyAbilityComp->ExecuteSkill(CurrentSelectedAbility, Targets);
         UE_LOG(LogTemp, Log, TEXT("OnAbilityCastingTimelineFinished: Ability executed with result: %f"), EffectResult);
 
-        // Réinitialiser la sélection et supprimer les feedbacks.
         bIsSelectingAbilityTarget = false;
         CurrentSelectedAbility = nullptr;
         AbilityTarget = nullptr;
@@ -1574,7 +1566,7 @@ void UTurnBasedCombatComponent::ExecutePlayerDefaultAttack()
     }
 
     float BaseDamage = AllyAbility->ExecuteDefaultAttack();
-    if (IsValid(EntityIndicatorTarget))
+    if (PlayerDefaultAttackVFX && IsValid(EntityIndicatorTarget))
     {
         if (UStatComponent* EnemyStat = EntityIndicatorTarget->FindComponentByClass<UStatComponent>())
         {
@@ -1582,15 +1574,12 @@ void UTurnBasedCombatComponent::ExecutePlayerDefaultAttack()
             float CalculatedDamage = CalculateDamage(BaseDamage, EnemyDefense);
             UE_LOG(LogTemp, Log, TEXT("ExecutePlayerDefaultAttack - Calculated damage: %f"), CalculatedDamage);
             EnemyStat->ApplyDamage(CalculatedDamage, false);
-            // (Optional) Spawn attack FX and display a damage widget here.
             UE_LOG(LogTemp, Log, TEXT("ExecutePlayerDefaultAttack - Applied damage to enemy %s. New HP: %f/%f"),
                 *EntityIndicatorTarget->GetName(), EnemyStat->Health, EnemyStat->MaxHealth);
-        }
-    }
 
-    if (DefaultAttackVFX && IsValid(EntityIndicatorTarget))
-    {
-        SpawnAttackVFX(DefaultAttackVFX, EntityIndicatorTarget);
+            SpawnAttackVFX(PlayerDefaultAttackVFX, EntityIndicatorTarget);
+            EntityIndicatorTarget = nullptr;
+        }
     }
     NextTurn();
 }
@@ -1625,13 +1614,14 @@ void UTurnBasedCombatComponent::ExecuteEnemyDefaultAttack()
         UE_LOG(LogTemp, Warning, TEXT("ExecuteEnemyDefaultAttack - Enemy %s has no EnemyAbilityComponent"), *EnemyActor->GetName());
     }
 
-    if (IsValid(PlayerActor))
+    if (EnemyDefaultAttackVFX && IsValid(PlayerActor))
     {
         if (UStatComponent* PlayerStat = PlayerActor->FindComponentByClass<UStatComponent>())
         {
             PlayerStat->ApplyDamage(DamageValue, false);
             UE_LOG(LogTemp, Log, TEXT("ExecuteEnemyDefaultAttack - Damage applied. Player HP: %f/%f"),
                 PlayerStat->Health, PlayerStat->MaxHealth);
+            SpawnAttackVFX(EnemyDefaultAttackVFX, PlayerActor);
         }
         else
         {

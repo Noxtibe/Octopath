@@ -157,8 +157,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|UI")
 	float DamageWidgetLifetime = 1.5f;
 
+	// VFX For the default player attack
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Effects")
-	UNiagaraSystem* DefaultAttackVFX;
+	UNiagaraSystem* PlayerDefaultAttackVFX;
+
+	// VFX For the default enemy attack
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Effects")
+	UNiagaraSystem* EnemyDefaultAttackVFX;
 
 	// -----------------------------------------------------------
 	// Private Helper Functions
