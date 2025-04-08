@@ -77,6 +77,10 @@ class OCTOPATH_API USkillData : public UDataAsset
 {
     GENERATED_BODY()
 
+public :
+
+    virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+
 public:
     /** Name of the skill */
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skill")
@@ -118,16 +122,32 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skill|Modifier")
     ECombatStatType AffectedStat;
 
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skill|Modifier")
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skill|Modifier", meta = (EditCondition = "bUseModifier", DisableEditConditionToggle = "true"))
     float ModifierValue;
 
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skill|Modifier")
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skill|Modifier", meta = (EditCondition = "bUseModifier", DisableEditConditionToggle = "true"))
     EModifierType ModifierType;
 
     // Duration in number of turns
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skill|Modifier", meta = (ClampMin = "0"))
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skill|Modifier", meta = (ClampMin = "0", EditCondition = "bUseModifier", DisableEditConditionToggle = "true"))
     int32 Duration;
 
+    UPROPERTY(EditAnywhere, BlueprintReadOnly)
+    bool bUseModifier;
+
+    // VFX launch on the target at the end of the timeline
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skill|Effects")
-    UNiagaraSystem* AbilitiesNiagara;
+    UNiagaraSystem* ImpactVFX;
+
+    // Offset to add to the target's location when spawning the ability FX
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skill|Effects")
+    FVector FXSpawnOffset = FVector(0.f, 0.f, 0.f);
+
+    // VFX launch on the caster during the timeline
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skill|Effects")
+    UNiagaraSystem* CastingVFX;
+
+    // Offset to add to the caster’s location when spawning the casting VFX.
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skill|Effects")
+    FVector CastingFXOffset = FVector(0.f, 0.f, 0.f);
 };

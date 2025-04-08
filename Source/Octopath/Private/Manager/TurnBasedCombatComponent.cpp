@@ -782,7 +782,7 @@ void UTurnBasedCombatComponent::ConfirmPlayerAttack()
 
 void UTurnBasedCombatComponent::ConfirmAbilityCast()
 {
-    // Arrêter et détruire toute timeline d'ability existante.
+    // Stop and destroy any existing ability casting timeline.
     if (AbilityCastingTimeline)
     {
         AbilityCastingTimeline->Stop();
@@ -790,14 +790,14 @@ void UTurnBasedCombatComponent::ConfirmAbilityCast()
         AbilityCastingTimeline = nullptr;
     }
 
-    // Vérifier qu'une ability est sélectionnée.
+    // Check if an ability is selected.
     if (!CurrentSelectedAbility)
     {
         UE_LOG(LogTemp, Warning, TEXT("ConfirmAbilityCast - No ability selected"));
         return;
     }
 
-    // Créer la timeline pour le casting de l'ability.
+    // Create the timeline for ability casting.
     AbilityCastingTimeline = NewObject<UTimelineComponent>(this, FName("AbilityCastingTimeline"));
     if (!AbilityCastingTimeline || !AbilityCastingCurve)
     {
@@ -806,27 +806,46 @@ void UTurnBasedCombatComponent::ConfirmAbilityCast()
         return;
     }
 
-    // Ajouter la timeline au propriétaire pour une gestion correcte.
+    // Add the timeline to the owner for proper management.
     if (AActor* Owner = GetOwner())
     {
         Owner->AddInstanceComponent(AbilityCastingTimeline);
     }
     AbilityCastingTimeline->RegisterComponent();
 
-    // Configurer la timeline en utilisant le temps de casting défini dans l'ability.
+    // Configure the timeline using the ability's casting time.
     float CastingTime = CurrentSelectedAbility->CastingTime;
     AbilityCastingTimeline->SetTimelineLength(CastingTime);
     AbilityCastingTimeline->SetTimelineLengthMode(ETimelineLengthMode::TL_TimelineLength);
 
-    // Ici, nous n'utilisons pas de curve d'interpolation.
-    // On lie uniquement la fonction de fin de timeline.
+    // Bind only the timeline finished function.
     FOnTimelineEvent FinishedFunction;
     FinishedFunction.BindUFunction(this, FName("OnAbilityCastingTimelineFinished"));
     AbilityCastingTimeline->SetTimelineFinishedFunc(FinishedFunction);
 
-    // Lancer la timeline.
+    // Start the timeline.
     AbilityCastingTimeline->PlayFromStart();
+
+    // --- Spawn the casting FX on the caster during the cast --- //
+    if (CurrentSelectedAbility->CastingVFX)
+    {
+        // Get the caster (usually the player).
+        AActor* Caster = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
+        if (IsValid(Caster))
+        {
+            // Calculate spawn location based on the caster's location plus the offset defined in the data asset.
+            FVector SpawnLocation = Caster->GetActorLocation() + CurrentSelectedAbility->CastingFXOffset;
+            // Spawn the casting VFX.
+            UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(),
+                CurrentSelectedAbility->CastingVFX,
+                SpawnLocation,
+                FRotator::ZeroRotator,
+                FVector(1.f),
+                true, true, ENCPoolMethod::None, true);
+        }
+    }
 }
+
 
 void UTurnBasedCombatComponent::SpawnDamageNumber(AActor* DamagedActor, int32 DamageAmount)
 {
@@ -1512,7 +1531,7 @@ void UTurnBasedCombatComponent::OnAbilityCastingTimelineFinished()
             return;
         }
 
-        if (CurrentSelectedAbility->AbilitiesNiagara)
+        if (CurrentSelectedAbility->ImpactVFX)
         {
             for (AActor* Target : Targets)
             {
@@ -1520,8 +1539,8 @@ void UTurnBasedCombatComponent::OnAbilityCastingTimelineFinished()
                 {
                     continue;
                 }
-                FVector SpawnLocation = Target->GetActorLocation() + FVector(0.f, 0.f, 0.f);
-                UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), CurrentSelectedAbility->AbilitiesNiagara, SpawnLocation, FRotator::ZeroRotator, FVector(1.f), true, true, ENCPoolMethod::None, true);
+                FVector SpawnLocation = Target->GetActorLocation() + CurrentSelectedAbility->FXSpawnOffset;
+                UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), CurrentSelectedAbility->ImpactVFX, SpawnLocation, FRotator::ZeroRotator, FVector(1.f), true, true, ENCPoolMethod::None, true);
             }
         }
 
